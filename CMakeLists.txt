@@ -43,8 +43,15 @@ target_include_directories(lobkit_md PUBLIC include)
 target_compile_features(lobkit_md PUBLIC cxx_std_20)
 target_link_libraries(lobkit_md PUBLIC lobkit_book PRIVATE lobkit_warnings)
 
+# Strategy simulator (integer accounting; the strategy math is the one place that uses double).
+add_library(lobkit_sim STATIC src/sim/report.cpp)
+target_link_libraries(lobkit_sim PUBLIC lobkit_md PRIVATE lobkit_warnings)
+
 add_executable(lobkit_replay tools/lobkit_replay.cpp)
 target_link_libraries(lobkit_replay PRIVATE lobkit_md lobkit_warnings)
+
+add_executable(lobkit_sim_run tools/lobkit_sim.cpp)
+target_link_libraries(lobkit_sim_run PRIVATE lobkit_sim lobkit_warnings)
 
 # Header-only lock-free infrastructure (SPSC ring). No dependencies.
 add_library(lobkit_infra INTERFACE)
