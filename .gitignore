@@ -3,3 +3,5 @@ build/
 compile_commands.json
 *.o
 __pycache__/
+data/lobster/
+data/itch/
