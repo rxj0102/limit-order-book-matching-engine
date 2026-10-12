@@ -121,12 +121,19 @@ class Book {
 
     Qty q_left = qty;
     bool feed_ahead = false;
+    // Walk from the front toward Y, filling own orders that are ahead of every
+    // feed order. The first feed order ahead of Y ends the walk: nothing behind it
+    // can fill, and we only needed to know that it exists. This keeps the common
+    // case (Y is at the front, or a feed order is) O(1); without the early exit
+    // an execute of a deep order cost O(queue position) even with no own orders.
     for (Index cur = lvl.head; cur != yi;) {
       Order& o = pool_[cur];
-      const Index nxt = o.next;
       if (o.owner == kFeedOwner) {
         feed_ahead = true;
-      } else if (!feed_ahead && q_left > 0) {
+        break;
+      }
+      const Index nxt = o.next;
+      if (q_left > 0) {
         const Qty fill = std::min(o.qty, q_left);
         emit(EventType::Trade, ts, 0, o.id, px, fill, aggressor, 0, kTradeExternalTaker);
         ++stats_.trades;
@@ -167,6 +174,29 @@ class Book {
     Index idx = kNil;
     if (to_index(p, idx) != RejectReason::None) return 0;
     return static_cast<Qty>(levels_[idx].total_qty);
+  }
+
+  // Aggregate view of one price level, for depth queries and snapshot checks.
+  struct LevelView {
+    Price price;
+    std::uint64_t qty;
+  };
+
+  // Fills out[0..n) with the best n levels of one side, best first, and returns
+  // how many exist. Reads the aggregates only, so it neither walks queues nor
+  // allocates.
+  std::size_t top_levels(Side side, LevelView* out, std::size_t n) const noexcept {
+    std::size_t k = 0;
+    Index l = side == Side::Bid ? best_bid_ : best_ask_;
+    while (l != kNil && k < n) {
+      out[k++] = {price_of(l), levels_[l].total_qty};
+      if (side == Side::Bid) {
+        l = l == 0 ? kNil : bids_.prev_at_or_below(l - 1);
+      } else {
+        l = asks_.next_at_or_above(l + 1);
+      }
+    }
+    return k;
   }
 
   // Returns nullptr if the id is not live. The pointer is invalidated by the

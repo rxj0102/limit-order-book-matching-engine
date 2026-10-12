@@ -1,3 +1,5 @@
+#include <chrono>
+
 #include "test_support.hpp"
 
 using namespace lobkit;
@@ -107,4 +109,23 @@ TEST_F(ReplayTest, FeedAddCrossingFeedOrdersIsCountedAsAnomaly) {
   feed().apply_add(2, Side::Bid, px(510), 5, ++t);  // a faithful feed never does this
   EXPECT_EQ(book().stats().feed_crossed_fills, 1u);
   expect_valid();  // the book stays uncrossed regardless
+}
+
+// A feed execute used to walk the whole queue ahead of the target to look for own
+// orders, so executing a deep feed order cost O(position). With no own orders
+// that is wasted work; the walk now stops at the first feed order ahead. Without
+// the early exit this test does about 3.75e9 link hops (tens of seconds in
+// release, minutes under sanitizers); with it, it is a few milliseconds.
+TEST(ReplayPerformanceGuard, ExecutingDeepFeedOrdersDoesNotWalkTheQueue) {
+  BookConfig cfg = small_cfg(120000);
+  Engine<NullSink> eng(cfg);
+  auto fa = eng.replay_adapter();
+  constexpr OrderId kN = 100000;
+  for (OrderId id = 1; id <= kN; ++id) fa.apply_add(id, Side::Ask, px(500), 1, id);
+  const auto t0 = std::chrono::steady_clock::now();
+  for (OrderId id = kN; id > kN / 2; --id) fa.apply_execute(id, 1, kN + id);
+  const double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+  EXPECT_LT(secs, 5.0);
+  EXPECT_EQ(eng.book().stats().queue_order_anomalies, kN / 2);  // each had feed orders ahead
+  EXPECT_EQ(eng.book().live_orders(), kN / 2);
 }
