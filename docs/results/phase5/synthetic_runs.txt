@@ -1,0 +1,79 @@
+date: 2026-10-12T16:24Z
+cpu: Intel(R) Xeon(R) Processor @ 2.10GHz
+cpus visible: 4, threads/core: 1, hypervisor: KVM
+
+Deterministic runs (no timing involved), SYNTHETIC (scripts/make_synthetic_lobster.py --messages 1000000 --seed 3)
+Single run per row on ONE synthetic feed: differences between rows are not statistically meaningful and say nothing about profitability.
+Default strategy parameters: gamma 0.05, k 50, sigma0 0.02, horizon 10 s, order 100, max inventory 500, requote every 100 ms, tick 100 (one cent).
+
+### baseline  []
+orders sent 1432 accepted 1432 rejected 0; cancels sent 1364 confirmed 1364 too late 0
+fills 92 (7707 shares; maker 92, taker 0), max |inventory| 124, final inventory 5
+  spread capture  38.28500
+  inventory PnL   -39.89000
+  fees paid       0.00000   (negative: rebate earned)
+  total           -1.60500   = spread capture + inventory PnL - fees paid (ledger check: matches)
+engine anomalies 66, feed rejects 24
+
+### latency 1 ms each way  [--submit-latency-us 1000 --ack-latency-us 1000 --md-latency-us 1000]
+orders sent 1308 accepted 1308 rejected 0; cancels sent 1284 confirmed 1283 too late 1
+fills 33 (2572 shares; maker 33, taker 0), max |inventory| 110, final inventory 6
+  spread capture  18.97000
+  inventory PnL   8.20000
+  fees paid       0.00000   (negative: rebate earned)
+  total           27.17000   = spread capture + inventory PnL - fees paid (ledger check: matches)
+engine anomalies 18, feed rejects 10
+
+### latency 10 ms each way  [--submit-latency-us 10000 --ack-latency-us 10000 --md-latency-us 10000]
+orders sent 1383 accepted 1379 rejected 4; cancels sent 1319 confirmed 1303 too late 16
+fills 103 (7684 shares; maker 103, taker 0), max |inventory| 100, final inventory -12
+  spread capture  34.90500
+  inventory PnL   -37.82500
+  fees paid       0.00000   (negative: rebate earned)
+  total           -2.92000   = spread capture + inventory PnL - fees paid (ledger check: matches)
+engine anomalies 69, feed rejects 40
+
+### latency 50 ms each way  [--submit-latency-us 50000 --ack-latency-us 50000 --md-latency-us 50000]
+orders sent 1188 accepted 1186 rejected 2; cancels sent 1182 confirmed 1174 too late 8
+fills 13 (1000 shares; maker 13, taker 0), max |inventory| 100, final inventory 0
+  spread capture  9.51000
+  inventory PnL   -33.51000
+  fees paid       0.00000   (negative: rebate earned)
+  total           -24.00000   = spread capture + inventory PnL - fees paid (ledger check: matches)
+engine anomalies 6, feed rejects 12
+
+### gamma 0.01  [--gamma 0.01]
+orders sent 1323 accepted 1323 rejected 0; cancels sent 1305 confirmed 1305 too late 0
+fills 24 (1817 shares; maker 24, taker 0), max |inventory| 257, final inventory -29
+  spread capture  23.78000
+  inventory PnL   -57.60500
+  fees paid       0.00000   (negative: rebate earned)
+  total           -33.82500   = spread capture + inventory PnL - fees paid (ledger check: matches)
+engine anomalies 12, feed rejects 1
+
+### gamma 0.5  [--gamma 0.5]
+orders sent 1865 accepted 1865 rejected 0; cancels sent 1620 confirmed 1620 too late 0
+fills 349 (27426 shares; maker 349, taker 0), max |inventory| 98, final inventory 0
+  spread capture  69.16500
+  inventory PnL   -38.64500
+  fees paid       0.00000   (negative: rebate earned)
+  total           30.52000   = spread capture + inventory PnL - fees paid (ledger check: matches)
+engine anomalies 265, feed rejects 90
+
+### maker rebate 0.2 cent per share  [--maker-fee -20]
+orders sent 1432 accepted 1432 rejected 0; cancels sent 1364 confirmed 1364 too late 0
+fills 92 (7707 shares; maker 92, taker 0), max |inventory| 124, final inventory 5
+  spread capture  38.28500
+  inventory PnL   -39.89000
+  fees paid       -15.41400   (negative: rebate earned)
+  total           13.80900   = spread capture + inventory PnL - fees paid (ledger check: matches)
+engine anomalies 66, feed rejects 24
+
+### max inventory 100  [--max-inventory 100]
+orders sent 1423 accepted 1423 rejected 0; cancels sent 1355 confirmed 1355 too late 0
+fills 93 (7675 shares; maker 93, taker 0), max |inventory| 100, final inventory 5
+  spread capture  33.85500
+  inventory PnL   -47.45000
+  fees paid       0.00000   (negative: rebate earned)
+  total           -13.59500   = spread capture + inventory PnL - fees paid (ledger check: matches)
+engine anomalies 69, feed rejects 23

@@ -53,6 +53,7 @@ jobs:
         run: |
           gcovr -r . build/coverage --filter 'include/lobkit/book/' --filter 'src/book/' --exclude-throw-branches --merge-lines --print-summary --fail-under-line 90
           gcovr -r . build/coverage --filter 'include/lobkit/md/' --filter 'src/md/' --exclude-throw-branches --merge-lines --print-summary
+          gcovr -r . build/coverage --filter 'include/lobkit/sim/' --filter 'src/sim/' --exclude-throw-branches --merge-lines --print-summary
 
   clang-sanitizers:
     name: clang ${{ matrix.name }}

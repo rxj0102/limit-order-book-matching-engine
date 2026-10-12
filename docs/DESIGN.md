@@ -232,6 +232,10 @@ Each phase ends with: clean build with warnings as errors on GCC and Clang, all 
 
 Implemented in include/lobkit/md and src/md, documented in MARKET_DATA.md. Differences from the original plan in section 7: the LOBSTER seeding policy is strict with no seeding, because the real files could not be inspected (MARKET_DATA.md section 5); the independent verification against real LOBSTER data has not been run; the ITCH decoder filters by stock locate and resolves a symbol through the stock directory messages; Book gained a read-only top_levels query used by verification.
 
+## 14c. Simulator as built (Phase 5)
+
+Implemented in include/lobkit/sim and src/sim, documented in SIMULATOR.md. As planned: replayed feed and strategy share one Engine; own orders join the back of the queue and fill by the section 16 rules; explicit latencies; Avellaneda-Stoikov with reservation price, spread, inventory limit, skew and a self-crossing guard; fees and rebates; PnL as spread capture, inventory PnL and fees. Decisions made while building it: three separate one-way delays (submit, acknowledgement, market data); all strategy orders are post-only; money is integer, in half price units, in 128 bit integers, so the PnL identity is exact, and the A-S math is the only floating point; the market view given to the strategy excludes its own orders; k is a configured parameter, not fitted. Every result so far is from SYNTHETIC data.
+
 ## 15. Decisions (from the Phase 0 review)
 
 1. Dependencies: GoogleTest, Google Benchmark, pybind11 approved. System packages are preferred when found, otherwise CMake FetchContent at pinned commit SHAs. Python related dependencies (pybind11, numpy, matplotlib, pytest) sit behind a CMake option, and the core builds and tests without them.

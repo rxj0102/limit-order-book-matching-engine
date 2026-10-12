@@ -14,6 +14,7 @@ How lobkit is checked, and what each check can and cannot tell you.
 | Allocation test | tests/book/test_no_alloc.cpp | Any heap call during matching, cancel, modify or replay |
 | SPSC ring | tests/infra/ | Edge cases (empty, full, wraparound, counter overflow, batches across the end) and a timed two-thread stress test checking order, loss, duplication and torn reads, also run under TSan. See INFRA.md |
 | Market data parsers | tests/md/ | Per message type and per error path for LOBSTER and ITCH: truncated, oversized, zero length and unknown frames, overflow, sticky errors, every prefix of the sample files, random bytes. Replay, pacing, verification divergence reporting (each divergence reason has a test) |
+| Simulator and strategy | tests/sim/ | Strategy math against hand values and a randomized no-cross property; latency timeline to the nanosecond; queue position and the own-order rules under latency; market view; cancel and post-only races; PnL decomposition on a hand worked case and as an exact integer identity across latencies; inventory limit at six latency settings; determinism. All on SYNTHETIC feeds. See SIMULATOR.md |
 | Fuzzing | fuzz/ | Inputs nobody thought of: engine versus reference with invariants, under ASan and UBSan |
 
 ## The reference book
@@ -35,7 +36,7 @@ A test that never fails proves nothing, so a fixed list of hand written bugs is 
 
 The mutants live in tools/mutation/mutants.py, each with the exact text it replaces and whether it must be killed or is equivalent. The script exits non-zero if any mutant behaves differently from what the list says. It edits include/lobkit/book/book.hpp in place and restores it afterwards, so run it on a clean working tree and not while building anything else.
 
-Result of the last run (200,000 operations per scenario, GCC 13.3, release): all 13 killable mutants were killed (one of them by a crash, which the tool counts as killed), and the 2 equivalent mutants survived as expected.
+Result of the last run (200,000 operations per scenario, GCC 13.3, release): of the 15 engine mutants, all 13 killable ones were killed (one of them by a crash, which the tool counts as killed) and the 2 equivalent mutants survived as expected. The list also holds 13 simulator and strategy mutants (suite sim, run against the AS and Sim tests): ignoring each of the three latencies, flipping the sign of spread capture or fees, removing the inventory cap or not counting working shares against it, leaving own orders in the market view, sending limit instead of post-only orders, flipping the maker flag or the aggressor side, and letting the feed win timestamp ties. All 13 were killed. Three of them survived the first version of the simulator tests (fill notice latency, the maker flag, the tie rule) and tests were added.
 
 | Mutant | Result |
 |---|---|

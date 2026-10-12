@@ -137,4 +137,4 @@ Both parsers produce the same feed message and the replay applies it through the
 | ITCH U replace | apply_delete of the old reference then apply_add of the new one on the same side: it loses time priority, which is how ITCH replaces behave. A replace of an unknown reference is counted and produces an UnknownOrderId reject |
 | ITCH P non-cross trade | not applied, counted |
 
-Order ids from a feed live in the same namespace as own order ids. The simulator must pick its own ids from a range the feed does not use (the top bit set is the convention proposed for Phase 5).
+Order ids from a feed live in the same namespace as own order ids. The simulator takes its own ids from [2^62, 2^63) (kOwnIdBase in include/lobkit/sim/types.hpp). A feed message whose id (or ITCH replacement id) has either of the two top bits set is skipped and counted in the simulator statistics, so the two ranges cannot collide.
