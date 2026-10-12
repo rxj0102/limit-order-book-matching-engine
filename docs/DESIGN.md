@@ -1,6 +1,6 @@
 # lobkit design
 
-Status: DRAFT for approval (Phase 0). Nothing in this document is implemented yet.
+Status: APPROVED with revisions (Phase 0), revision 2. Section 15 records the decisions.
 All performance statements below are hypotheses to be tested, not results.
 
 ## 1. Goals and non-goals
@@ -59,25 +59,28 @@ tests/  fuzz/  bench/  python/  docs/  scripts/  data/synthetic/
 cmake/  CMakePresets.json  .clang-format  .clang-tidy  .github/workflows/
 ```
 
-The brief names src/book and so on. I propose headers under include/lobkit and implementation under src, because the engine is a header-heavy template library for inlining reasons. This is a layout decision for you to confirm (open question 5).
+Headers live under include/lobkit and non-template implementation under the matching src subdirectory. The engine is a header-heavy template library so the sink inlines.
 
 ## 3. Core types and data structures
 
-### 3.1 Fixed point
+### 3.1 Fixed point and instrument tick grid
 
-- `Price` is an int32 count of ticks, `Qty` is a uint32 count of lots, `OrderId` is uint64, `Seq` is uint64. Strong typedef wrappers in debug-friendly form, plain integers underneath.
-- The engine knows nothing about dollars. An `InstrumentSpec` converts: price = ticks * tick_size_in_native_units. LOBSTER prices are in 1/10000 dollar, so the md layer divides by the tick size (for example 100 for a one cent tick) and rejects messages that are not on tick, counting them in the replay report.
+- `Price` is an int64 in the instrument native fixed-point unit (for LOBSTER, dollars times 10000). `Qty` is a uint32 count of shares or lots, `OrderId` is uint64, `Seq` is uint64.
+- Each book is configured with an instrument grid: `tick_size` (native units per tick) and `base_price` (native price of ladder index 0). The ladder is indexed in real ticks: `index = (price - base_price) / tick_size`. A one cent stock in LOBSTER units has `tick_size = 100`, so 65536 levels cover $655.36 of intraday range rather than $6.55, which is what indexing in native units would give.
+- Orders store the ladder index (uint32), not the native price. Events carry native prices, reconstructed as `base_price + index * tick_size`, so consumers never see the grid.
+- The engine rejects a price that is below base, at or above `base_price + num_levels * tick_size`, or not a multiple of `tick_size` from base. The reject reasons are distinct: `PriceOutOfBand` and `PriceOffTick`. The engine counts every such reject in `BookStats`.
+- The replay layer picks `base_price` from the first valid price in the file (or from a command line value) minus half the band, aligned to a tick, so the band is centered on the opening price. It reports out-of-band and off-tick counts. In snapshot-verification mode any out-of-band or off-tick message is a hard failure, because the reconstructed book would silently diverge from the reference. In plain replay and in simulation they are counted, reported at the end, and the run is marked as degraded if the count is non-zero.
 - Notional and PnL accumulate in int64 or __int128 where overflow is plausible. Overflow checks are asserted in debug builds.
 
 ### 3.2 Price ladder
 
 Choice: a dense array of price levels over a configured band of ticks, plus a two-level bitmap for finding the best price.
 
-- The band is `[base_tick, base_tick + N)` with N a power of two, default 65536. One shared level array serves both sides. This is sound because a price level can hold only one side at a time when the book is uncrossed.
+- The band is `num_levels` ticks starting at `base_price`, with `num_levels` a power of two, default 65536 (configurable). One shared level array serves both sides. This is sound because a price level can hold only one side at a time when the book is uncrossed.
 - `Level` is 32 bytes: head index, tail index, total quantity (uint64), order count, plus padding. Two levels per 64 byte cache line, 2 MiB at N = 65536, so the whole ladder fits in a typical L2.
 - Two bitmaps (bids and asks), each 64-ary in two levels: 65536 bits is 1024 words, summarized by 16 words. Best price lookup is a count-leading-zeros or count-trailing-zeros over at most 2 words after the summary. Bid best uses highest set bit, ask best uses lowest.
 - Best bid and best ask are cached as plain members and updated incrementally, with the bitmap used only when a level empties.
-- Prices outside the band are rejected with a Reject reason (`PriceOutOfBand`). The caller is responsible for choosing a band around the reference price. A recentering mechanism is not in v0.1 (documented limitation, roadmap).
+- Prices outside the band are rejected (`PriceOutOfBand`) and counted. The caller chooses the band, see 3.1. A recentering mechanism is not in v0.1 (documented limitation, roadmap).
 
 Alternatives considered:
 
@@ -91,7 +94,7 @@ Alternatives considered:
 
 ### 3.3 Orders and per-level FIFO
 
-- `Order` is 32 bytes, alignas(32), so exactly two per cache line and never straddling one: id (8), remaining qty (4), price ticks (4), prev index (4), next index (4), owner/participant id (2), side (1), flags (1), 4 bytes reserved. static_assert on size and alignment.
+- `Order` is 32 bytes, alignas(32), so exactly two per cache line and never straddling one: id (8), remaining qty (4), ladder index (4), prev index (4), next index (4), owner id (2), side (1), flags (1), 4 bytes reserved. static_assert on size and alignment.
 - Orders live in a fixed pool array, addressed by uint32 index rather than pointer. Indices halve the link size, survive relocation of the pool, and make the layout trivially serializable for the determinism hash.
 - Per-level queue is an intrusive doubly linked list through `prev` and `next`. Doubly linked is needed for O(1) cancel from the middle. Append at tail, match from head.
 - The pool is a free list threaded through the same array (the `next` field of free slots). Allocation and free are a pop and a push. Capacity is a constructor parameter, exhaustion produces a `Reject(PoolExhausted)` rather than a growth. The pool counts allocated and free slots for the invariant checker.
@@ -121,7 +124,7 @@ Order types: limit (GTC), market, IOC, FOK, post-only.
 - Cancel: by id. Cancel of an unknown, filled, or already cancelled id yields `Reject(UnknownOrderId)`.
 - Zero quantity: `Reject(InvalidQty)`.
 - Modify: new quantity strictly less than current and same price keeps queue position (in-place reduction). Any price change or quantity increase is cancel-and-replace, keeps the order id, and moves the order to the back of the queue at the new price. A modify that would cross follows normal limit-order matching after the replace. This is the conservative convention and is the one most exchanges use for size increases; it is documented as a choice, not a universal.
-- Self-trade: see open question 3. Proposed default is to allow self-trades and flag them in the Trade event (owner ids equal), with an opt-in prevention mode (cancel newest) in the config. Rationale: the simulator needs the strategy not to lock itself, but the replayed historical flow has no owner information.
+- Self-trade: a config enum `SelfTradePolicy`. v0.1 implements `Allow` only: self-trades execute and the Trade event carries a self-trade flag (both owners equal and non-zero; owner 0 means the feed and is never a self-trade). `CancelNewest` is reserved for a later release. The market maker avoids crossing its own quotes at the strategy level, not in the engine.
 
 ## 5. Memory layout summary
 
@@ -146,7 +149,7 @@ Each size is static_assert-ed. If measurement shows that a different layout wins
 ## 7. Market data
 
 - LOBSTER: message file (time, type 1-5, order id, size, price, direction) and orderbook file (N levels of ask/bid price and size). Replay applies message types: 1 new, 2 partial cancel, 3 delete, 4 execute visible, 5 execute hidden (counted, not applied), 6 cross trade (ignored), 7 halt (noted).
-- Book reconstruction applies execute messages against the named resting order, which requires an engine entry point for exogenous events that does not re-run matching (open question 4).
+- Book reconstruction goes through `ReplayAdapter` (section 16), which shares the Book structures and the invariant checker with `Engine`. Execute messages name the resting order and do not re-run matching.
 - Verification mode: after each message (or every k messages) compare the engine top N levels with the LOBSTER orderbook row. Divergences are counted and the first few are printed with context. Known sources of expected divergence (hidden executions, trading halts, orders from before the file begins) are documented rather than hidden.
 - ITCH 5.0 subset: System Event (S), Stock Directory (R, parse and skip), Add Order (A), Add with MPID (F), Order Executed (E), Order Executed with Price (C), Order Cancel (X), Order Delete (D), Order Replace (U), Trade non-cross (P). Others are length-skipped. Big endian fields, bounds checked on every read, no unaligned pointer casts (memcpy plus byte swap).
 - Zero copy: file is mmap-ed (read-only, MAP_PRIVATE, sequential advice) and parsed as string_view or span without copying. LOBSTER is text CSV, so a hand-written integer scanner is used, not strtod or iostreams. Where an mmap is unavailable (non-POSIX), a buffered fallback is used. Parsers return a status code; they never throw and never read out of bounds, which is what the fuzz target checks.
@@ -225,12 +228,28 @@ Each phase ends with: clean build with warnings as errors on GCC and Clang, all 
 - Bounded price band: simple and fast, but a real feed with a wide intraday range or erroneous prints will hit rejects. Mitigation: the band is configurable, the replay reports out-of-band counts, and recentering is on the roadmap.
 - Queue position fill model is an approximation and likely optimistic in some regimes; documented, not hidden.
 
-## 15. Open questions (need your decision before Phase 1)
+## 15. Decisions (from the Phase 0 review)
 
-1. Dependencies. You listed GoogleTest, Google Benchmark, and pybind11, plus numpy and matplotlib for Python analysis and pytest for Python tests. Do you approve these, and fetched how: system packages if found, otherwise CMake FetchContent with pinned release tags (my recommendation), or git submodules? No other dependency is planned. Nothing is in the hot path.
-2. Name. I propose keeping lobkit. Any objection?
-3. Self-trade policy. Allow and flag (my proposal), or prevent by default?
-4. Public API shape. Proposal: `Engine<Sink>` with `submit(const NewOrder&)`, `cancel(OrderId)`, `modify(const ModifyOrder&)`, all returning void with results through the sink, plus a separate `ReplayAdapter` entry set (`apply_add`, `apply_reduce`, `apply_execute`, `apply_delete`) that mutates the book from exogenous feed messages without re-matching. Do you approve this split? It is the main public API decision.
-5. Layout. Headers in include/lobkit with implementation in src, instead of strictly src/book as written in the brief?
-6. Price band default of 65536 ticks and a pool default of 1M orders (about 32 MiB for orders plus 32 MiB for the hash table). Acceptable, or do you want a different default target?
-7. Should I push commits to the branch claude/gallant-gauss-cogvuh as I go (current assumption), and should tags stay local until you say otherwise?
+1. Dependencies: GoogleTest, Google Benchmark, pybind11 approved. System packages are preferred when found, otherwise CMake FetchContent at pinned commit SHAs. Python related dependencies (pybind11, numpy, matplotlib, pytest) sit behind a CMake option, and the core builds and tests without them.
+2. Name stays lobkit.
+3. Self-trade is a config enum, Allow by default, CancelNewest later. The engine allows and flags. The market maker guards against crossing its own quotes at the strategy level.
+4. Public API is `Engine<Sink>` plus a separate `ReplayAdapter<Sink>`. Both operate on the same Book structures and use the same invariant checker.
+5. Layout is include/lobkit/{book,infra,md,sim} with matching src/{book,infra,md,sim}.
+6. Price band 65536 levels and pool 1M orders are defaults, both configurable.
+7. Commits are pushed to the working branch, tags stay local, and one pull request is opened per phase.
+
+## 16. Replay adapter and own orders
+
+`ReplayAdapter` applies exogenous feed messages to the book without running the matching loop for them: `apply_add`, `apply_reduce`, `apply_delete`, `apply_execute`. Feed orders carry owner id 0. Orders submitted through `Engine::submit` by the simulator carry owner ids of 1 or more and are called own orders.
+
+How own orders interact with `apply_execute` (full text in MATCHING_RULES.md, section 9):
+
+- Own orders rest at the back of the queue at their price, behind every feed order already there. Feed orders that arrive later queue behind them.
+- A feed execute names a feed order Y and a quantity q. Own orders ahead of Y at that level are filled first, in queue order, up to q, but only while no feed order sits ahead of them. An own order therefore fills only after every feed order that was ahead of it has drained, which is the statement that real flow traded through its queue position.
+- Feed orders are always reduced by exactly the feed quantity, so the feed side of the book stays an exact replica of the feed. Own fills in this step are counterfactual and are not subtracted from Y. The consequence (traded volume can exceed the feed volume) is documented as a bias.
+- If a feed order is ahead of an own order when a feed order behind it executes, the replica has diverged from the feed. The own order is not filled, and `queue_order_anomalies` is incremented.
+- Feed cancels and reductions ahead of an own order advance its queue position and never fill it.
+- A feed add that would cross an own resting order trades with it as an incoming limit order and the feed order is reduced by the traded amount. This is rare, it keeps the book uncrossed, and it is counted in `feed_add_displaced_qty`.
+- Adapter calls that name an own order id are rejected with `WrongOwner`.
+
+A Phase 1 test (tests/book/test_replay_own_orders.cpp) pins each of these rules.
