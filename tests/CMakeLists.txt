@@ -11,9 +11,12 @@ add_executable(lobkit_tests
   md/test_lobster.cpp
   md/test_itch.cpp
   md/test_replay.cpp
-  md/test_mapped_file.cpp)
+  md/test_mapped_file.cpp
+  sim/test_as.cpp
+  sim/test_simulator.cpp
+  sim/test_as_runs.cpp)
 target_include_directories(lobkit_tests PRIVATE support)
-target_link_libraries(lobkit_tests PRIVATE lobkit_md lobkit_warnings GTest::gtest_main)
+target_link_libraries(lobkit_tests PRIVATE lobkit_sim lobkit_warnings GTest::gtest_main)
 target_compile_definitions(lobkit_tests PRIVATE LOBKIT_DATA_DIR="${CMAKE_SOURCE_DIR}/data/synthetic")
 
 # Replaces global operator new, so it must not share a binary with other tests.
@@ -67,3 +70,9 @@ add_executable(lobkit_infra_tests infra/test_spsc_ring.cpp infra/test_spsc_stres
 target_include_directories(lobkit_infra_tests PRIVATE ../bench)
 target_link_libraries(lobkit_infra_tests PRIVATE lobkit_infra lobkit_warnings GTest::gtest_main)
 gtest_discover_tests(lobkit_infra_tests DISCOVERY_MODE PRE_TEST)
+
+# Smoke test of the simulator command line on the committed SYNTHETIC data.
+add_test(NAME lobkit_sim_run_smoke
+  COMMAND lobkit_sim_run --lobster ${CMAKE_SOURCE_DIR}/data/synthetic/SYNTH_lobster_1000_message_10.csv
+          --out ${CMAKE_BINARY_DIR}/sim_smoke --data-label SYNTHETIC-1000)
+set_tests_properties(lobkit_sim_run_smoke PROPERTIES PASS_REGULAR_EXPRESSION "ledger check: matches")
