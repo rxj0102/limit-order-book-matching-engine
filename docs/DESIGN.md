@@ -1,7 +1,7 @@
 # lobkit design
 
-Status: APPROVED with revisions (Phase 0), revision 2. Section 15 records the decisions.
-All performance statements below are hypotheses to be tested, not results.
+Status: the Phase 0 plan (approved with revisions, revision 2), kept as the record of intent and annotated with what was built. Section 15 records the decisions. Sections 14b, 14c and 17 describe where the build differs from the plan. Where this plan and the code disagree, the code, MATCHING_RULES.md, SIMULATOR.md and MARKET_DATA.md are authoritative.
+Performance statements in sections 3 and 5 were hypotheses when written. Measured results, including the ones that disproved a hypothesis, are in PERFORMANCE.md and INFRA.md.
 
 ## 1. Goals and non-goals
 
@@ -19,7 +19,7 @@ All performance statements below are hypotheses to be tested, not results.
 - Not a live trading system. No order gateway, no risk system, no persistence, no recovery protocol.
 - Not multi-instrument in v0.x. One book per engine instance; multiple books are run as independent instances. Sharding is a roadmap item.
 - Not a nanosecond-record claim. Numbers will be measured on whatever hardware the CI or I have, and labeled as such.
-- No hidden or iceberg orders, no auctions, no stop orders, no pegged orders, no market-by-price-only feeds. Listed in LIMITATIONS.md.
+- No hidden or iceberg orders, no auctions, no stop orders, no pegged orders, no market-by-price-only feeds. Listed in LIMITATIONS.md, which consolidates every limitation of the project.
 - No market impact model. Replayed history does not react to the strategy (see section 9).
 - No GPU, no kernel bypass, no network code.
 
@@ -48,6 +48,8 @@ All performance statements below are hypotheses to be tested, not results.
 
    book/ depends on nothing but the C++ standard library.
    md/ and sim/ depend on book/. python/ depends on all of them. infra/ is standalone.
+   infra/ is shown as optional glue: the SPSC ring is built, tested and benchmarked on its own,
+   and is not wired into the replay or the simulator in v0.1.
 ```
 
 ### Repository layout
@@ -69,8 +71,8 @@ Headers live under include/lobkit and non-template implementation under the matc
 - Each book is configured with an instrument grid: `tick_size` (native units per tick) and `base_price` (native price of ladder index 0). The ladder is indexed in real ticks: `index = (price - base_price) / tick_size`. A one cent stock in LOBSTER units has `tick_size = 100`, so 65536 levels cover $655.36 of intraday range rather than $6.55, which is what indexing in native units would give.
 - Orders store the ladder index (uint32), not the native price. Events carry native prices, reconstructed as `base_price + index * tick_size`, so consumers never see the grid.
 - The engine rejects a price that is below base, at or above `base_price + num_levels * tick_size`, or not a multiple of `tick_size` from base. The reject reasons are distinct: `PriceOutOfBand` and `PriceOffTick`. The engine counts every such reject in `BookStats`.
-- The replay layer picks `base_price` from the first valid price in the file (or from a command line value) minus half the band, aligned to a tick, so the band is centered on the opening price. It reports out-of-band and off-tick counts. In snapshot-verification mode any out-of-band or off-tick message is a hard failure, because the reconstructed book would silently diverge from the reference. In plain replay and in simulation they are counted, reported at the end, and the run is marked as degraded if the count is non-zero.
-- Notional and PnL accumulate in int64 or __int128 where overflow is plausible. Overflow checks are asserted in debug builds.
+- The replay tools pick `base_price` by scanning the whole message file once for its lowest and highest displayed order price and centering the band on their midpoint, aligned to a tick (or take a command line value). The scan reads the file ahead, which is acceptable for a backtest range and would not be in a live system. It reports out-of-band and off-tick counts. In snapshot-verification mode any out-of-band or off-tick message is a hard failure, because the reconstructed book would silently diverge from the reference. In plain replay and in simulation they are counted, reported at the end, and the run is marked as degraded if the count is non-zero.
+- Notional and PnL accumulate in int64 or __int128 where overflow is plausible (the simulator uses 128 bit integers; no overflow assertions exist, and the Python path conversion checks that values fit in 64 bits).
 
 ### 3.2 Price ladder
 
@@ -109,7 +111,7 @@ Alternatives considered:
 ### 3.5 Events
 
 - Fixed-size POD event, 48 bytes or less, with a type tag: `Ack`, `Reject`, `Trade`, `Cancel`, `Modify`. Every event carries a monotonically increasing engine sequence number. `Trade` carries taker id, maker id, price, qty, and aggressor side. `Reject` carries a reason code.
-- Delivery: the engine is a class template over a `Sink` type that is any callable object with `operator()(const Event&)`, checked with a C++20 concept. The compiler inlines the sink, so there is no virtual call and no std::function. A ring-buffer sink and a vector sink (tests) and a hashing sink (determinism test) are provided.
+- Delivery: the engine is a class template over a `Sink` type that is any callable object with `operator()(const Event&)`, checked with a C++20 concept. The compiler inlines the sink, so there is no virtual call and no std::function. Four sinks are provided: `NullSink`, `CountingSink`, `VectorSink` (allocates; tests and tools only) and `HashSink` (the determinism hash). There is no ring-buffer sink: the SPSC ring is not connected to the engine.
 - Determinism: the engine reads no clock and no global state. Time is an input field on messages and is copied through to events. Same input stream implies byte-identical event bytes; the test hashes the raw event bytes (FNV-1a or similar, not security relevant) and compares across runs and across the reference implementation. Padding bytes in events are zeroed explicitly so the byte hash is meaningful.
 
 ## 4. Matching rules (summary; full text goes in MATCHING_RULES.md)
@@ -123,7 +125,7 @@ Order types: limit (GTC), market, IOC, FOK, post-only.
 - Post-only: if it would cross, it is rejected (not slid). Sliding to the touch is a venue-specific variant and is out of scope, noted in the doc.
 - Cancel: by id. Cancel of an unknown, filled, or already cancelled id yields `Reject(UnknownOrderId)`.
 - Zero quantity: `Reject(InvalidQty)`.
-- Modify: new quantity strictly less than current and same price keeps queue position (in-place reduction). Any price change or quantity increase is cancel-and-replace, keeps the order id, and moves the order to the back of the queue at the new price. A modify that would cross follows normal limit-order matching after the replace. This is the conservative convention and is the one most exchanges use for size increases; it is documented as a choice, not a universal.
+- Modify: a new quantity not greater than the current one at the same price keeps queue position (in-place reduction; an equal quantity is a no-op that keeps priority). Any price change or quantity increase is cancel-and-replace, keeps the order id, and moves the order to the back of the queue at the new price. A modify that would cross follows normal limit-order matching after the replace. This is the conservative convention and is the one most exchanges use for size increases; it is documented as a choice, not a universal.
 - Self-trade: a config enum `SelfTradePolicy`. v0.1 implements `Allow` only: self-trades execute and the Trade event carries a self-trade flag (both owners equal and non-zero; owner 0 means the feed and is never a self-trade). `CancelNewest` is reserved for a later release. The market maker avoids crossing its own quotes at the strategy level, not in the engine.
 
 ## 5. Memory layout summary
@@ -158,24 +160,24 @@ Each size is static_assert-ed. If measurement shows that a different layout wins
 
 ## 8. Simulator
 
-- Event-driven loop over a time-ordered queue with four event sources: market data messages, strategy timers, order acknowledgements, and market data delivery to the strategy. Two configurable latencies: order latency (strategy to exchange, and ack back) and market data latency (exchange to strategy). The strategy only sees the book state as of (now minus md_delay), and its orders reach the book at (decision time plus order_delay). Deterministic given the seed and config.
+- Event-driven loop over a time-ordered queue with four event sources: market data messages, strategy timers, order acknowledgements, and market data delivery to the strategy. As built there are three separately configured one-way latencies (submit, acknowledgement, market data), see section 14c and SIMULATOR.md section 2. The strategy only sees the book state as of (now minus md_delay), and its orders reach the book at (decision time plus submit latency). Deterministic given the config.
 - Fill model: strategy orders enter the same engine, joining the back of the queue at their price. They fill only when replayed flow trades through the queue ahead of them. A strategy order never changes what the historical feed does next (no impact). Historical cancels ahead of us advance our position because the engine processes them as real removals. This is the standard optimistic-to-neutral queue model, and its bias (no impact, no adverse reaction of other participants, cancels in front are assumed independent of our presence) is stated in LIMITATIONS.md.
 - Because hidden executions and the feed start state are imperfect, the simulator reports how many historical messages could not be applied (referencing unknown ids) so the user can judge fidelity.
 - Strategy: Avellaneda-Stoikov with
   - reservation price r = s - q * gamma * sigma^2 * (T - t)
   - total optimal spread delta = gamma * sigma^2 * (T - t) + (2 / gamma) * ln(1 + gamma / k)
   - quotes at r -/+ delta / 2, rounded to ticks, clipped to stay passive, skewed with inventory, with a hard max inventory that suppresses the side that would add exposure.
-  - sigma estimated online (EWMA of mid returns), k either configured or fitted offline from trade arrival intensity vs distance, documented as a rough fit.
+  - sigma estimated online (EWMA of squared mid changes), k a configured parameter. Fitting k offline was planned and is not built.
   - The infinite horizon variant (constant T - t) is the default for intraday backtests; finite horizon is selectable.
-- The strategy and PnL accounting use double precision. This is a deliberate, documented exception to the no-floating-point rule, which applies to the engine. Fills crossing the boundary are integer.
-- PnL decomposition: spread capture (fill price vs mid at fill time, signed), inventory PnL (position times mid change), fees and rebates (configurable per side and per liquidity role). The three components must sum to total mark-to-market PnL to within integer rounding, and a test asserts that.
-- Output: per-run CSV for fills, inventory path, PnL path, plus a JSON file with the exact config and seed for reproducibility.
+- The strategy quote math uses double precision. This is a deliberate, documented exception to the no-floating-point rule, which applies to the engine. As built, PnL accounting is NOT floating point (the plan said it would be): it is integer, in 128 bit integers, which makes the decomposition identity exact (SIMULATOR.md section 4). Fills crossing the boundary are integer. Elsewhere in the project double appears only in wall-clock timing and pacing, report display, and the synthetic generator's mix parameter.
+- PnL decomposition: spread capture (fill price vs the mid just before the operation that caused the fill, signed; SIMULATOR.md section 4), inventory PnL (position times mid change), fees and rebates (configurable per side and per liquidity role). The three components must sum to total mark-to-market PnL to within integer rounding, and a test asserts that.
+- Output: per-run CSV for fills, inventory path and PnL path (byte-identical for identical inputs). The planned JSON file with the exact config was not built; the command line and the data label printed in the summary are the record. The simulator has no random seed: it is deterministic given the feed and the config.
 
 ## 9. Python bindings and analysis
 
-- pybind11 module `lobkit` exposing Engine (with a Python-side event collection into numpy structured arrays), replay, and simulator run with config dataclasses. Outputs are numpy arrays that share memory with C++ buffers (capsule-owned) rather than lists of Python objects. Per-event Python callbacks are not offered on the hot path.
+- pybind11 module `lobkit` (compiled part `lobkit._core`) exposing Engine (events collected into numpy structured arrays), replay, and the simulator run, configured with keyword-constructed config classes (not dataclasses). Outputs are numpy arrays that share memory with C++ buffers (capsule-owned) rather than lists of Python objects. Per-event Python callbacks are not offered on the hot path.
 - Features module (pure numpy, tested with pytest against hand computed cases): order flow imbalance (Cont, Kukanov, Stoikov), queue imbalance, microprice, realized spread, and a simple volume-bucketed VPIN with documented bucketing and the usual caveats.
-- Analysis script or notebook: parameter sweeps over gamma and latency, PnL curve, inventory distribution, spread capture vs adverse selection, sensitivity plots. Runs on the synthetic data in CI; real-data results only if I can obtain real data here.
+- Analysis script or notebook: parameter sweeps over gamma and latency, PnL curve, inventory distribution, spread capture vs adverse selection, sensitivity plots. Runs on synthetic data (a tiny grid in CI, the full grid in docs/results/phase6); no real-data results exist.
 
 ## 10. Testing and verification strategy
 
@@ -186,40 +188,42 @@ Each size is static_assert-ed. If measurement shows that a different layout wins
 5. Invariant checker, compiled in with an option (on in Debug and sanitizer presets, compiled out of Release): uncrossed book, level aggregate equals the sum of its orders, FIFO links consistent in both directions, bitmap bit set iff level non-empty, best prices correct, pool allocated plus free equals capacity, hash map entries equal live orders.
 6. libFuzzer targets (clang only): parser targets, and an engine target that decodes arbitrary bytes into operations and runs them with the invariant checker on. A short corpus-seeded smoke run in CI, longer runs manual.
 7. Sanitizer CMake presets: asan, ubsan, tsan. TSan applies to the infra tests and any threaded harness.
-8. Coverage via gcov or llvm-cov in CI; goal above 90 percent line coverage on the book code. I will report the actual number, and if it is lower I will say so.
+8. Coverage via gcov and gcovr in CI, with a gate of 90 percent line coverage on the book code. Measured numbers are in TESTING.md.
 
 ## 11. Build, tooling, CI
 
-- CMake 3.25+, presets: `debug`, `release`, `asan`, `ubsan`, `tsan`, `coverage`, `fuzz`, `bench`. Warnings as errors on project targets only (-Wall -Wextra -Wpedantic -Wconversion -Wshadow and so on). Both GCC and Clang. Local environment here has GCC 13.3, Clang 18.1, CMake 3.28, Python 3.13, 4 vCPUs on a virtualized Xeon.
-- clang-format and clang-tidy configs committed. clang-tidy runs in CI as a separate job, initially on the book and infra directories.
-- GitHub Actions: matrix of GCC and Clang by Debug and Release on Ubuntu, a macOS job marked best-effort, sanitizer jobs, coverage job, benchmark smoke run (tiny iteration count, verifies it runs, does not publish numbers because shared runners are noisy).
-- Build flags for benchmarks: -O2 vs -O3, -march=native only in a dedicated benchmark preset and recorded with the results. Release artifacts and defaults do not use -march=native, so builds are portable.
+- CMake 3.25+, presets: `debug`, `release`, `asan`, `ubsan`, `tsan`, `coverage`, `fuzz`, `bench`, `python`. Warnings as errors on project targets only (-Wall -Wextra -Wpedantic -Wconversion -Wshadow and so on). Both GCC and Clang. Local environment here has GCC 13.3, Clang 18.1, CMake 3.28, Python 3.13, 4 vCPUs on a virtualized Xeon.
+- clang-format and clang-tidy configs are committed. clang-format is checked in CI. clang-tidy is NOT run in CI and has not been run as part of this work; the config is there for contributors.
+- GitHub Actions (.github/workflows/ci.yml): GCC and Clang by Debug and Release on Ubuntu, GCC sanitizer presets, Clang ASan+UBSan and TSan, coverage, a libFuzzer smoke run, benchmark smoke runs (no numbers published because shared runners are noisy), the Python build with pytest and a tiny sweep, the Python sanitizer job, and a format check. There is no macOS job.
+- Build flags: nothing uses -march=native. It was tried in Phase 7 and gave no gain (PERFORMANCE.md section 6), so portable builds lose nothing measured.
 
 ## 12. Benchmark methodology (summary; detail goes in PERFORMANCE.md)
 
 - Google Benchmark for throughput style microbenchmarks. A custom latency harness for per-operation distributions: rdtsc (with lfence or rdtscp ordering) around each operation, warmup pass, results into a preallocated array, percentiles p50, p90, p99, p99.9, max computed offline. TSC to nanosecond conversion calibrated against a monotonic clock, invariant TSC checked.
 - Measurement overhead (cost of an empty timed region) is measured and reported alongside, not silently subtracted.
 - Environment recording: CPU model, microcode if available, compiler and version, flags, governor, whether the core was pinned, and whether this was a VM. This sandbox is a VM, so frequency scaling control, isolcpus, and clean pinning may be unavailable. If so, the numbers are labeled as VM numbers and the doc says that tail latencies here are dominated by hypervisor noise and should not be compared with bare metal figures.
-- Workloads: add only, cancel only, modify, match through N levels (N = 1, 10, 100), mixed workload whose operation mix and price distribution are derived from the real or synthetic data and described with the statistics used.
-- Baseline: the std::map plus std::list reference book in the same harness, same inputs, same sink.
-- Optimization log: every attempt gets a before and after row with the measured delta, including regressions and no-ops, with the commit hash. perf stat (cache and branch misses) and one flamegraph are included only if perf is usable in this environment; otherwise a TODO with exact commands is left.
+- Workloads as built: add, cancel, modify (reduce and reprice), match through N levels (N = 1, 4, 16, 64), a mixed workload, the same with strided ids, and a synthetic feed replay. All synthetic; PERFORMANCE.md section 2 describes them.
+- Baseline as built: a separate minimal std::map plus std::list book (bench/std_map_book.hpp), not the reference book, which is O(n) on purpose. Equality of the event streams is checked before every benchmark run.
+- Optimization log as built: PERFORMANCE.md section 6 and docs/results/phase7/attempts_tables.md, with every attempt including failures. perf hardware counters are unavailable in the VM, so the cache and branch figures are simulated (valgrind) and labeled so; a software-sampling flame graph exists and exact commands for hardware counters are in PERFORMANCE.md section 8.
 - Throughput in million messages per second on a full-day replay requires a full-day file. If only the free sample (one stock, one day, ten levels) is reachable, that is what is reported, and it is labeled as such.
 
 ## 13. Milestones and releases
 
-| Milestone | Content | Release |
-|---|---|---|
-| M0 | This document, repo skeleton, CMake presets, formatting and tidy configs, empty CI | none |
-| M1 | Phase 1 engine core, unit tests, invariant checker, allocation and determinism tests | v0.1.0 |
-| M2 | Phase 2 reference book, differential tests, fuzz targets, coverage in CI | v0.2.0 |
-| M3 | Phase 3 SPSC ring, comparison queues, TSan stress | v0.3.0 |
-| M4 | Phase 4 parsers, replay, verification, synthetic data, download script | v0.4.0 |
-| M5 | Phase 5 simulator and A-S strategy | v0.5.0 |
-| M6 | Phase 6 Python bindings, features, analysis | v0.6.0 |
-| M7 | Phase 7 benchmark suite and results, optimization log | v0.7.0 |
-| M8 | Phase 8 README, docs, CONTRIBUTING, LICENSE, badges | v1.0.0 candidate |
+The Phase 0 plan assigned a version to every phase (v0.1.0 to v0.7.0, then v1.0.0). That was changed during the work: phases were developed on one branch, a pull request is opened per phase once the repository owner confirms that main exists, and the first release tag, v0.1.0, is created locally only after the first pull request is merged to main. Tags are outward facing, so none exists yet. Release notes for v0.1.0 are prepared in docs/RELEASE_NOTES_v0.1.0.md. CHANGELOG.md lists what each phase added.
 
-Each phase ends with: clean build with warnings as errors on GCC and Clang, all tests, sanitizer runs, a conventional-commit history of small commits, and a summary with the measured numbers. I will tag locally and ask before pushing tags, since tags are outward facing.
+| Phase | Content | State |
+|---|---|---|
+| 0 | This document, skeleton, presets, formatting config, CI | done |
+| 1 | Engine core, unit tests, invariant checker, allocation and determinism tests | done |
+| 2 | Reference book, differential tests, mutation tool, fuzz targets, coverage | done |
+| 3 | SPSC ring, comparison queues, TSan stress, measurements | done |
+| 4 | LOBSTER and ITCH parsers, replay, snapshot verification, synthetic data | done; real-data verification NOT run |
+| 5 | Simulator and Avellaneda-Stoikov strategy | done; synthetic data only |
+| 6 | Python bindings, features, sweep | done; synthetic data only |
+| 7 | Benchmarks and profiling | done; no optimization adopted |
+| 8 | README, limitations, contributing, changelog, release notes, audit | done |
+
+Each phase ended with: clean build with warnings as errors on GCC and Clang, all tests, sanitizer runs, small conventional commits, and a summary with measured numbers.
 
 ## 14. Risks
 
@@ -248,7 +252,7 @@ Implemented in include/lobkit/sim and src/sim, documented in SIMULATOR.md. As pl
 
 ## 16. Replay adapter and own orders
 
-`ReplayAdapter` applies exogenous feed messages to the book without running the matching loop for them: `apply_add`, `apply_reduce`, `apply_delete`, `apply_execute`. Feed orders carry owner id 0. Orders submitted through `Engine::submit` by the simulator carry owner ids of 1 or more and are called own orders.
+`ReplayAdapter` applies exogenous feed messages to the book: `apply_add`, `apply_reduce`, `apply_delete`, `apply_execute`. Executes, reductions and deletes name an order and never run the matching loop for the feed; an add is processed like a limit order, which only trades in the rare case that it crosses an own resting order (rule below). Feed orders carry owner id 0. Orders submitted through `Engine::submit` by the simulator carry owner ids of 1 or more and are called own orders.
 
 How own orders interact with `apply_execute` (full text in MATCHING_RULES.md, section 9):
 
@@ -263,3 +267,16 @@ How own orders interact with `apply_execute` (full text in MATCHING_RULES.md, se
 Anomalies (blocked own fills, feed adds that cross an own order, feed adds that cross feed orders, executes larger than the remaining quantity) are counted and reported in plain replay and simulation, where the run is marked degraded. In snapshot-verification mode they are hard failures, like out-of-band and off-tick messages. MATCHING_RULES.md section 10 has the full table.
 
 A Phase 1 test (tests/book/test_replay_own_orders.cpp) pins each of these rules.
+
+## 17. Plan versus build, summary of changes found in the Phase 8 audit
+
+This list records the places where this document had drifted from the code and what was done. All were edits to this file; none required a code change.
+
+- Sinks: the plan mentioned a ring-buffer sink that does not exist.
+- Modify: an equal quantity also keeps priority (the plan said strictly less).
+- Replay band: centered on the midpoint of the file price range, not on the first price.
+- Simulator: three latencies, no JSON config output, no fitted k, spread capture measured against the mid before the operation.
+- Python: config classes with keyword constructors, not dataclasses.
+- CI: no macOS job and no clang-tidy job; Python and format jobs exist.
+- Benchmarks: workload list, baseline implementation and the optimization log are as built; no optimization was adopted.
+- Releases: one release, v0.1.0, planned after the first merge, instead of one version per phase.

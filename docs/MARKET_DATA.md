@@ -119,7 +119,7 @@ All figures are VM measurements (KVM guest, 4 vCPUs, Intel Xeon @ 2.10 GHz, GCC 
 | ITCH parse only, 2,910,592 stock messages out of 3,000,000 frames | 9 | 38 to 51 | 50 |
 | ITCH replay, parse and apply | 9 | 5.8 to 8.1 | 6.5 |
 
-Reading the numbers: parsing is cheap next to applying (about 65 ns per LOBSTER line against about 190 ns for parse plus apply), so the book operations dominate and are the place to look in Phase 7; I have not profiled them. The verification mode is dominated by parsing the order book file, which has about 270 bytes per row.
+Reading the numbers: parsing is cheap next to applying (about 65 ns per LOBSTER line against about 190 ns for parse plus apply), so the book operations dominate. They were profiled in Phase 7 (docs/PERFORMANCE.md sections 4 and 5); the same synthetic file was rerun there and gave 4.7 million messages per second median (range 4.2 to 4.9), consistent with the 4.7 to 5.5 range above. The gap between this end to end rate and the in-memory apply rate is an open item in docs/PERFORMANCE.md section 8. The verification mode is dominated by parsing the order book file, which has about 270 bytes per row.
 
 ### A performance bug found by this measurement
 
