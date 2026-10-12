@@ -92,7 +92,9 @@ Baselines (bench/queues.hpp) share the ring storage scheme so that only synchron
 
 ### Throughput (items per second, saturated, 4096 slots, 8 byte payload)
 
-Interleaved round-robin run (bench/bench_interleaved.cpp), 21 rounds of 2,000,000 items each, producer on cpu 1 and consumer on cpu 2. Median with min to max in parentheses, in million items per second. The run was done twice, the second row is the rerun.
+VM measurements (KVM guest, section 6). Ring throughput is only ever quoted here, and anywhere else in this repository, as a range with this label: it moved by a factor of four between runs on this host.
+
+Interleaved round-robin run (bench/bench_interleaved.cpp), 21 rounds of 2,000,000 items each, producer on cpu 1 and consumer on cpu 2. Each cell is the median over the rounds with the min to max range in parentheses, in million items per second. The run was done twice (run 1 and rerun). Summed over both runs, the single-item ring ranged from 30 to 184 million items per second (VM).
 
 | Queue | Batch 1 | Batch 1 (rerun) | Batch 64 | Batch 64 (rerun) |
 |---|---|---|---|---|
@@ -100,9 +102,9 @@ Interleaved round-robin run (bench/bench_interleaved.cpp), 21 rounds of 2,000,00
 | MutexQueue | 4.1 (3.4 to 5.1) | 4.3 (3.6 to 5.4) | 40 (32 to 46) | 40 (34 to 82) |
 | NaiveAtomicQueue | 5.1 (4.5 to 6.4) | 7.2 (6.0 to 31) | 8.0 (6.2 to 8.8) | 7.8 (5.6 to 28) |
 
-On this machine the ring is roughly 23 to 25 times the mutex queue and 14 to 20 times the naive atomic queue for single items, and about 5 times the mutex queue and 25 times the naive queue with batches of 64. The naive queue gains nothing from batching, as expected, since its batch is a loop.
+In this VM the single-item ring is roughly 23 to 25 times the mutex queue and 14 to 20 times the naive atomic queue for single items, and about 5 times the mutex queue and 25 times the naive queue with batches of 64. The naive queue gains nothing from batching, as expected, since its batch is a loop.
 
-The same suite run with Google Benchmark (bench/bench_queues.cpp, benchmarks one after another, 7 repetitions of 2 transfers, median) gave much lower ring numbers, because it ran at a time when this VM was in a slower state (see section 7):
+The same suite run with Google Benchmark (bench/bench_queues.cpp, benchmarks one after another, 7 repetitions of 2 transfers; the cells are medians, and the coefficient of variation across repetitions was 3 to 14 percent) gave much lower ring numbers, from 18 to 190 million items per second across the cells, because it ran at a time when this VM was in a slower state (see section 7). VM measurements:
 
 | Queue | Payload | Batch 1 | Batch 16 | Batch 64 |
 |---|---|---|---|---|
@@ -117,7 +119,7 @@ The coefficient of variation across repetitions was 3 to 14 percent within the r
 
 ### Latency (one way, producer stamp to consumer receipt)
 
-A producer creates an item every 2000 ns (busy waiting on the TSC), so the queue stays nearly empty and the measurement is hand-off cost, not queueing behind a backlog. 100,000 items per run, the first 10 percent discarded, 5 runs, median across runs of each percentile. TSC 2.1 GHz, timer overhead 26 ns median (lfence, rdtsc, lfence back to back). There were no negative differences in any run (no cross core TSC skew visible). Values in nanoseconds.
+VM measurements. A producer creates an item every 2000 ns (busy waiting on the TSC), so the queue stays nearly empty and the measurement is hand-off cost, not queueing behind a backlog. 100,000 items per run, the first 10 percent discarded, 5 runs, median across runs of each percentile. TSC 2.1 GHz, timer overhead 26 ns median (lfence, rdtsc, lfence back to back). There were no negative differences in any run (no cross core TSC skew visible). Values in nanoseconds.
 
 Hand-off latency, measured from the moment the batch was pushed (the cost of the queue):
 
@@ -139,7 +141,7 @@ Reading the tails: p99 of 4 to 45 microseconds and p99.9 of 100 to 340 microseco
 
 ## 5. What each design decision is worth (ablation)
 
-bench_interleaved also runs a single-item copy of the ring with each decision switched off in turn (AblationRing in bench/queues.hpp), batch 1, 8 byte payload, 21 interleaved rounds, median in million items per second (min to max). The production ring is included as a control and agrees with the ablation baseline. Run 1 and rerun:
+bench_interleaved also runs a single-item copy (VM measurements) of the ring with each decision switched off in turn (AblationRing in bench/queues.hpp), batch 1, 8 byte payload, 21 interleaved rounds, median in million items per second (min to max). The production ring is included as a control and agrees with the ablation baseline. Run 1 and rerun:
 
 | Variant | Run 1 | Rerun | Verdict |
 |---|---|---|---|

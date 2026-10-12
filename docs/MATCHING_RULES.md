@@ -107,7 +107,7 @@ Some situations mean that the book no longer matches the feed exactly. The engin
 
 | Counter | Meaning |
 |---|---|
-| `queue_order_anomalies` | An own order was blocked from a fill because a feed order was still ahead of it when a feed order behind it executed (section 9, rule 3). |
+| `queue_order_anomalies` | A feed order was still ahead of the executed feed order, so the execute was not at the front of its queue (section 9, rule 3). This is counted whether or not own orders are present, because on a price-time priority venue it means the replica has diverged from the feed. When own orders sit behind that feed order they are not filled. |
 | `feed_crossed_own_fills` | A feed add crossed a resting own order and traded with it (section 9, rule 6). |
 | `feed_crossed_fills` | A feed add crossed a resting feed order. A faithful feed never does this. |
 | `feed_exec_overflow` | A feed execute named more quantity than the order had left. |
@@ -117,3 +117,24 @@ Reporting policy, enforced by the replay layer (Phase 4):
 
 - Plain replay and simulation: all counters are printed in the final report, and the run is marked degraded if any anomaly or feed-operation reject count is non-zero. The run continues.
 - Snapshot-verification mode: any anomaly, any out-of-band or off-tick message, and any rejected feed operation is a hard failure. The first occurrence is reported with its message number, and the process exits non-zero. In this mode there are no own orders, so the own-order anomalies cannot occur by construction, and seeing one indicates a bug.
+
+## 11. How feed formats map onto the replay adapter
+
+Both parsers produce the same feed message and the replay applies it through the calls in section 7. The mapping, with what is deliberately not applied:
+
+| Source message | Adapter call or action |
+|---|---|
+| LOBSTER 1 new limit order | apply_add |
+| LOBSTER 2 partial cancel (size is the removed quantity) | apply_reduce |
+| LOBSTER 3 delete | apply_delete |
+| LOBSTER 4 execution of a displayed order | apply_execute |
+| LOBSTER 5 hidden execution | not applied, counted with its shares |
+| LOBSTER 6 cross trade, 7 halt | not applied, counted |
+| ITCH A, F add | apply_add |
+| ITCH E, C executed | apply_execute |
+| ITCH X cancel | apply_reduce |
+| ITCH D delete | apply_delete |
+| ITCH U replace | apply_delete of the old reference then apply_add of the new one on the same side: it loses time priority, which is how ITCH replaces behave. A replace of an unknown reference is counted and produces an UnknownOrderId reject |
+| ITCH P non-cross trade | not applied, counted |
+
+Order ids from a feed live in the same namespace as own order ids. The simulator must pick its own ids from a range the feed does not use (the top bit set is the convention proposed for Phase 5).

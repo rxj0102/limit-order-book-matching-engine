@@ -1,7 +1,12 @@
 name: ci
+# push without a branch filter runs on every branch; pull_request runs for PRs into
+# any base. Both were checked against real runs (push runs 1 to 3 succeeded; the
+# pull_request path has not been exercised yet because no PR exists).
 on:
   push:
+    branches: ['**']
   pull_request:
+  workflow_dispatch:
 
 jobs:
   build-test:
@@ -45,7 +50,9 @@ jobs:
       - run: cmake --build --preset coverage
       - run: ctest --preset coverage
       - name: Coverage summary for the book code
-        run: gcovr -r . build/coverage --filter 'include/lobkit/book/' --filter 'src/book/' --exclude-throw-branches --merge-lines --print-summary --fail-under-line 90
+        run: |
+          gcovr -r . build/coverage --filter 'include/lobkit/book/' --filter 'src/book/' --exclude-throw-branches --merge-lines --print-summary --fail-under-line 90
+          gcovr -r . build/coverage --filter 'include/lobkit/md/' --filter 'src/md/' --exclude-throw-branches --merge-lines --print-summary
 
   clang-sanitizers:
     name: clang ${{ matrix.name }}
@@ -77,8 +84,10 @@ jobs:
       - run: cmake --build --preset fuzz
       - name: Fuzz for 60 seconds from the committed corpus
         run: |
-          mkdir -p corpus && cp fuzz/corpus/engine/* corpus/
-          build/fuzz/fuzz/fuzz_engine corpus -max_total_time=60
+          for t in engine lobster itch; do
+            mkdir -p corpus_$t && cp fuzz/corpus/$t/* corpus_$t/
+            build/fuzz/fuzz/fuzz_$t corpus_$t -max_total_time=40
+          done
 
   bench-smoke:
     # Proves the benchmarks build and run. Shared runners are far too noisy to
@@ -97,4 +106,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          find include src tests -name '*.hpp' -o -name '*.cpp' | xargs clang-format --dry-run --Werror
+          find include src tests fuzz bench tools -name '*.hpp' -o -name '*.cpp' | xargs clang-format --dry-run --Werror

@@ -228,6 +228,10 @@ Each phase ends with: clean build with warnings as errors on GCC and Clang, all 
 - Bounded price band: simple and fast, but a real feed with a wide intraday range or erroneous prints will hit rejects. Mitigation: the band is configurable, the replay reports out-of-band counts, and recentering is on the roadmap.
 - Queue position fill model is an approximation and likely optimistic in some regimes; documented, not hidden.
 
+## 14b. Market data as built (Phase 4)
+
+Implemented in include/lobkit/md and src/md, documented in MARKET_DATA.md. Differences from the original plan in section 7: the LOBSTER seeding policy is strict with no seeding, because the real files could not be inspected (MARKET_DATA.md section 5); the independent verification against real LOBSTER data has not been run; the ITCH decoder filters by stock locate and resolves a symbol through the stock directory messages; Book gained a read-only top_levels query used by verification.
+
 ## 15. Decisions (from the Phase 0 review)
 
 1. Dependencies: GoogleTest, Google Benchmark, pybind11 approved. System packages are preferred when found, otherwise CMake FetchContent at pinned commit SHAs. Python related dependencies (pybind11, numpy, matplotlib, pytest) sit behind a CMake option, and the core builds and tests without them.
