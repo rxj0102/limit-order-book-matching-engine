@@ -41,9 +41,17 @@ struct BookStats {
   std::uint64_t trades = 0;
   // Replay diagnostics, see MATCHING_RULES.md section 9.
   std::uint64_t feed_crossed_fills = 0;      // a feed add traded against a feed order
+  std::uint64_t feed_crossed_own_fills = 0;  // a feed add traded against an own resting order
   std::uint64_t feed_add_displaced_qty = 0;  // feed add quantity consumed by crossing own orders
   std::uint64_t feed_exec_overflow = 0;      // feed execute larger than remaining quantity
   std::uint64_t queue_order_anomalies = 0;   // feed order ahead of an own order was not drained
+
+  // Replay divergences. Plain replay and simulation count and report them;
+  // snapshot verification treats any non-zero value as a failure, together with
+  // out-of-band and off-tick rejects (MATCHING_RULES.md section 9).
+  std::uint64_t anomalies() const noexcept {
+    return feed_crossed_fills + feed_crossed_own_fills + feed_exec_overflow + queue_order_anomalies;
+  }
 
   std::uint64_t reject_count(RejectReason r) const noexcept {
     return rejects[static_cast<std::size_t>(r)];

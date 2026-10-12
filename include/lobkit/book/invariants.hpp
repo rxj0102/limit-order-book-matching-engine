@@ -66,8 +66,11 @@ struct BookInspector {
       Index prev = kNil;
       std::uint64_t sum = 0;
       std::uint32_t cnt = 0;
+      // No cycle guard is needed: the head has prev == kNil, so any cycle
+      // revisits a node whose prev link disagrees and trips the prev check.
       for (Index c = lv.head; c != kNil; c = b.pool_[c].next) {
-        if (++cnt > b.pool_.capacity()) return fail("cycle in level " + std::to_string(l));
+        if (c >= b.pool_.capacity()) return fail("link out of range at level " + std::to_string(l));
+        ++cnt;
         const Order& o = b.pool_[c];
         if (!(o.flags & kOrderLive)) return fail("dead order linked at level " + std::to_string(l));
         if (o.prev != prev) return fail("broken prev link at level " + std::to_string(l));
@@ -103,14 +106,8 @@ struct BookInspector {
     if (free_len + live != b.pool_.capacity())
       return fail("pool accounting: free + live != capacity");
 
-    std::uint32_t mapped = 0;
-    bool map_ok = true;
-    b.map_.for_each([&](OrderId id, Index idx) {
-      ++mapped;
-      if (idx >= b.pool_.capacity() || b.pool_[idx].id != id || !(b.pool_[idx].flags & kOrderLive))
-        map_ok = false;
-    });
-    if (!map_ok || mapped != live) return fail("id map contains a stale entry");
+    // Every live order was looked up above and the sizes match, so the map is
+    // exactly the live set; a separate stale-entry scan would be redundant.
     return std::nullopt;
   }
 };

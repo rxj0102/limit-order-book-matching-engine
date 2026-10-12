@@ -171,7 +171,7 @@ class Book {
 
   // Returns nullptr if the id is not live. The pointer is invalidated by the
   // next mutation.
-  const Order* find_order(OrderId id) const noexcept {
+  [[nodiscard]] const Order* find_order(OrderId id) const noexcept {
     const Index oi = map_.find(id);
     return oi == kNil ? nullptr : &pool_[oi];
   }
@@ -256,7 +256,7 @@ class Book {
   // ---- New order path ----------------------------------------------------
 
   // Returns the quantity that traded on arrival.
-  Qty submit_impl(const NewOrder& o) noexcept {
+  [[nodiscard]] Qty submit_impl(const NewOrder& o) noexcept {
     if (o.qty == 0) {
       reject(o.ts, o.id, RejectReason::InvalidQty, o.side, o.price, 0);
       return 0;
@@ -349,7 +349,13 @@ class Book {
         const Qty fill = std::min(qty, m.qty);
         std::uint8_t flags = 0;
         if (owner != kFeedOwner && owner == m.owner) flags |= kTradeSelf;
-        if (owner == kFeedOwner && m.owner == kFeedOwner) ++stats_.feed_crossed_fills;
+        if (owner == kFeedOwner) {
+          if (m.owner == kFeedOwner) {
+            ++stats_.feed_crossed_fills;
+          } else {
+            ++stats_.feed_crossed_own_fills;
+          }
+        }
         emit(EventType::Trade, ts, id, m.id, px, fill, side, 0, flags);
         ++stats_.trades;
         m.qty -= fill;

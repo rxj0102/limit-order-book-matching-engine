@@ -89,7 +89,7 @@ Rules:
    - Y is then reduced by exactly q (clamped to its remaining quantity), emitting its own `Trade`.
 4. Consequence of rule 3: an own order fills only when every feed order that was ahead of it at placement time has been drained (executed, reduced to zero, or deleted) and a feed execute then reaches an order behind it. Merely being at the front does not fill an order.
 5. Replica fidelity. Feed orders are reduced by exactly the feed quantity, so removing the own orders from the book yields the feed book exactly. The price of this is that own fills are counterfactual extra volume: total traded volume in the simulator can exceed feed volume by the own fills. Own fills are also bounded by the quantity of the feed execute that reached them, which makes the fill model somewhat conservative about aggressor size and optimistic about the absence of market impact (see LIMITATIONS.md).
-6. Feed add that crosses an own order. A feed order cannot cross feed orders in a faithful replica, so the only possible crossing is against own resting orders (for example, an own bid above a newly arrived feed ask). The feed order is processed as an incoming limit order: it trades against the crossed own orders at the own order price, and its remainder rests. The traded amount is subtracted from the feed order, so the replica deviates from the feed by that amount, counted in `feed_add_displaced_qty`.
+6. Feed add that crosses an own order. A feed order cannot cross feed orders in a faithful replica, so the only possible crossing is against own resting orders (for example, an own bid above a newly arrived feed ask). The feed order is processed as an incoming limit order: it trades against the crossed own orders at the own order price, and its remainder rests. The traded amount is subtracted from the feed order, so the replica deviates from the feed by that amount, counted in `feed_add_displaced_qty`. Every such fill is an anomaly, counted in `feed_crossed_own_fills`.
 7. Own aggressive orders (marketable limit, market, IOC, FOK) match against feed orders by normal price-time priority, with the rules of section 3.
 
 Worked example. Level at price 100, queue front to back: feed X1 (10), own O (5), feed X2 (8).
@@ -100,3 +100,20 @@ Worked example. Level at price 100, queue front to back: feed X1 (10), own O (5)
 | `apply_execute(X1, 6)` | X1 is gone. O is now at the front, still unfilled (rule 4). |
 | `apply_execute(X2, 3)` | O is ahead of X2 and no feed order is ahead of O. O fills 3 (2 left). X2 is reduced by 3 (5 left). |
 | Same state but X1 not yet drained, `apply_execute(X2, 3)` | A feed order is ahead of O, so this is the anomaly case. O is not filled and the anomaly counter increments. |
+
+## 10. Anomalies and how replay reports them
+
+Some situations mean that the book no longer matches the feed exactly. The engine never hides them: each has a counter in `BookStats`, and the sum of the first four below is `BookStats::anomalies()`.
+
+| Counter | Meaning |
+|---|---|
+| `queue_order_anomalies` | An own order was blocked from a fill because a feed order was still ahead of it when a feed order behind it executed (section 9, rule 3). |
+| `feed_crossed_own_fills` | A feed add crossed a resting own order and traded with it (section 9, rule 6). |
+| `feed_crossed_fills` | A feed add crossed a resting feed order. A faithful feed never does this. |
+| `feed_exec_overflow` | A feed execute named more quantity than the order had left. |
+| Rejects `PriceOutOfBand`, `PriceOffTick`, `UnknownOrderId`, `InvalidQty`, `WrongOwner`, `DuplicateOrderId` on feed operations | The message could not be applied. |
+
+Reporting policy, enforced by the replay layer (Phase 4):
+
+- Plain replay and simulation: all counters are printed in the final report, and the run is marked degraded if any anomaly or feed-operation reject count is non-zero. The run continues.
+- Snapshot-verification mode: any anomaly, any out-of-band or off-tick message, and any rejected feed operation is a hard failure. The first occurrence is reported with its message number, and the process exits non-zero. In this mode there are no own orders, so the own-order anomalies cannot occur by construction, and seeing one indicates a bug.

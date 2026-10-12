@@ -247,9 +247,11 @@ How own orders interact with `apply_execute` (full text in MATCHING_RULES.md, se
 - Own orders rest at the back of the queue at their price, behind every feed order already there. Feed orders that arrive later queue behind them.
 - A feed execute names a feed order Y and a quantity q. Own orders ahead of Y at that level are filled first, in queue order, up to q, but only while no feed order sits ahead of them. An own order therefore fills only after every feed order that was ahead of it has drained, which is the statement that real flow traded through its queue position.
 - Feed orders are always reduced by exactly the feed quantity, so the feed side of the book stays an exact replica of the feed. Own fills in this step are counterfactual and are not subtracted from Y. The consequence (traded volume can exceed the feed volume) is documented as a bias.
-- If a feed order is ahead of an own order when a feed order behind it executes, the replica has diverged from the feed. The own order is not filled, and `queue_order_anomalies` is incremented.
+- If a feed order is ahead of an own order when a feed order behind it executes, the replica has diverged from the feed. The own order is not filled, and `queue_order_anomalies` is incremented. This is an anomaly (below).
 - Feed cancels and reductions ahead of an own order advance its queue position and never fill it.
-- A feed add that would cross an own resting order trades with it as an incoming limit order and the feed order is reduced by the traded amount. This is rare, it keeps the book uncrossed, and it is counted in `feed_add_displaced_qty`.
+- A feed add that would cross an own resting order trades with it as an incoming limit order and the feed order is reduced by the traded amount. This is rare, it keeps the book uncrossed, and it is an anomaly counted in `feed_crossed_own_fills` and `feed_add_displaced_qty`.
 - Adapter calls that name an own order id are rejected with `WrongOwner`.
+
+Anomalies (blocked own fills, feed adds that cross an own order, feed adds that cross feed orders, executes larger than the remaining quantity) are counted and reported in plain replay and simulation, where the run is marked degraded. In snapshot-verification mode they are hard failures, like out-of-band and off-tick messages. MATCHING_RULES.md section 10 has the full table.
 
 A Phase 1 test (tests/book/test_replay_own_orders.cpp) pins each of these rules.

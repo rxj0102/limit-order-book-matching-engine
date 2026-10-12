@@ -16,7 +16,7 @@ class OrderPool {
     free_head_ = capacity > 0 ? 0 : kNil;
   }
 
-  Index allocate() noexcept {
+  [[nodiscard]] Index allocate() noexcept {
     const Index i = free_head_;
     if (i == kNil) return kNil;
     free_head_ = slots_[i].next;

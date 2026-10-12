@@ -22,7 +22,7 @@ class IdMap {
     shift_ = 64 - std::countr_zero(cap);
   }
 
-  Index find(OrderId key) const noexcept {
+  [[nodiscard]] Index find(OrderId key) const noexcept {
     for (std::uint32_t i = home(key);; i = (i + 1) & mask_) {
       const Slot& s = slots_[i];
       if (s.idx == kNil) return kNil;
@@ -64,13 +64,6 @@ class IdMap {
 
   std::uint32_t size() const noexcept { return size_; }
   std::uint32_t capacity() const noexcept { return mask_ + 1; }
-
-  // For the invariant checker: visit every occupied slot.
-  template <class F>
-  void for_each(F&& f) const {
-    for (const Slot& s : slots_)
-      if (s.idx != kNil) f(s.key, s.idx);
-  }
 
  private:
   // 16 bytes: four slots per cache line. Occupancy is encoded in idx so that
