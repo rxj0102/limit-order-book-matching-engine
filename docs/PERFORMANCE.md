@@ -200,7 +200,48 @@ What this suggests, without proving it: on dense sequential ids the id hash deci
 - The baseline is one reasonable standard library design, not the best possible one (a flat sorted vector of levels or a hand made pool allocator would be faster than the baseline and closer to the engine).
 - The engine was not tuned by this phase; the table in section 3 describes the Phase 1 implementation.
 
-## 8. TODO: rerun on bare metal with isolated cores
+## 8. Open items and future work
+
+### Open item: the replay gap (4.7 against 16.6 million messages per second)
+
+Status: OPEN. The end to end LOBSTER replay (4.7 M msg/s, section 4) runs at less than a third of the in-memory feed_replay benchmark (16.6 M/s). Parsing alone is 14.6 M/s, about 68 ns per message, and the replay takes about 212 ns per message, so apply costs about 144 ns in the replay against about 60 ns in the benchmark. Parse plus the benchmark apply cost would predict about 7.9 M/s. The remaining gap is unexplained.
+
+First hypothesis (page faults on the first touch of the memory mapped file): partly tested here and not supported. Measured with `perf stat -e minor-faults,system_time` (software events, which work in this VM), pinned to vCPU 2, on the 1,000,000 message synthetic file:
+
+| Run | Minor faults | System time |
+|---|---|---|
+| lobkit_replay, 1,000,000 messages | 17,345 to 17,347 (3 runs) | 28 to 36 ms in 2 of 3 runs (the first run showed 300 ms, a cold start) |
+| lobkit_replay, first 1,000 messages only | 17,037 | not comparable (cold start) |
+| lobkit_replay --parse-only, 1,000,000 messages | 443 | 4 ms |
+
+About 17,000 of the faults happen while the book is constructed (the pool and id table are about 64 MiB), before the timed loop starts, because the timer in `replay()` starts after construction. The loop itself takes about 300 faults for the file mapping (the kernel maps several pages per fault), which at an assumed 1 microsecond each is well under 1 ms of the 190 to 240 ms. Parse only touches the same file and takes 443 faults. So first touch of the mapping does not explain the gap. A VM may make faults more expensive than that assumption, so the assumption is the weak point; the command below measures it directly.
+
+Commands to settle it on any machine (each run pinned; use 9 interleaved rounds for the A/B):
+
+    # faults inside the replay loop = all faults minus faults for a 1,000 message run (construction)
+    FILE=BIG_lobster_message_10.csv; head -n 1000 $FILE > small.csv
+    taskset -c 2 perf stat -e minor-faults,system_time build/release/lobkit_replay --lobster $FILE
+    taskset -c 2 perf stat -e minor-faults,system_time build/release/lobkit_replay --lobster small.csv
+    # A/B with the file pre-faulted: add MAP_POPULATE to the mmap flags in src/md/mapped_file.cpp (line 66), rebuild into build/populate, then
+    for i in 1 2 3 4 5 6 7 8 9; do
+      taskset -c 2 build/release/lobkit_replay --lobster $FILE | grep '^replay'
+      taskset -c 2 build/populate/lobkit_replay --lobster $FILE | grep '^replay'
+    done
+
+If MAP_POPULATE does not move the rate, the next hypotheses, in order: (2) parse and apply are serialized (the next line cannot be parsed ahead of the apply that depends on the book), so the out of order core cannot overlap their cache misses the way it does over a precomputed operation vector; test by parsing the file into a vector of messages first and then timing only the apply loop (the same engine, the same file). (3) The replay tool uses a pool and id table twice the size of the benchmark's (32 MiB each against 16 MiB); a pool of 262,144 orders gave 5.6 [4.6, 6.4] against 4.9 [4.5, 5.2] (section 4, ranges overlap). (4) The LOBSTER synthetic stream and the feed generator stream differ in operation mix and locality. Do not attribute the gap to any of these before the test above has been run.
+
+### Future work: id hash experiments, to be revisited with real LOBSTER ids
+
+The id map hash experiments of section 6 (attempts 6 and 7) are NOT adopted and are kept here as future work. Reason: they trade add and mixed latency (up to 64 percent lower p50 on dense sequential ids) against cancel, matching and reprice throughput (20 to 56 percent lower), and the benefit exists only when ids are dense and recently used ids are looked up again soon. That is a property of the synthetic generator, not of any real feed. When real LOBSTER (or ITCH) order ids are available:
+
+1. Measure the id structure first: the density of ids in a day (live ids over the id range), how often a lookup targets one of the last 2000 ids, and the gaps between consecutive ids.
+2. Re-run the id hash attempts (docs/results/phase7/lochash and group patches, bench scenarios mixed and mixed_strided_ids) against a scenario built from the real operation stream.
+3. Consider pairing a locality preserving hash with a cheaper delete (tombstones, or a scheme without backward shift), because the erase cost is what made the grouped variants lose on cancel and match.
+4. Adopt only if the gain exceeds the noise floor of the machine used, on bare metal, without a regression on cancel, matching or reprice.
+
+The prefetch method (`prefetch_id`) was an experiment that needed a new public Engine method. The decision is not to add it to the public API; it stays a patch in docs/results/phase7/prefetch_experiment.patch and it did not help anyway.
+
+### TODO: rerun on bare metal with isolated cores
 
 On a Linux machine you control (not a VM), as root:
 

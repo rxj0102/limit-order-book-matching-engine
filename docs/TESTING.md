@@ -15,6 +15,8 @@ How lobkit is checked, and what each check can and cannot tell you.
 | SPSC ring | tests/infra/ | Edge cases (empty, full, wraparound, counter overflow, batches across the end) and a timed two-thread stress test checking order, loss, duplication and torn reads, also run under TSan. See INFRA.md |
 | Market data parsers | tests/md/ | Per message type and per error path for LOBSTER and ITCH: truncated, oversized, zero length and unknown frames, overflow, sticky errors, every prefix of the sample files, random bytes. Replay, pacing, verification divergence reporting (each divergence reason has a test) |
 | Simulator and strategy | tests/sim/ | Strategy math against hand values and a randomized no-cross property; latency timeline to the nanosecond; queue position and the own-order rules under latency; market view; cancel and post-only races; PnL decomposition on a hand worked case and as an exact integer identity across latencies; inventory limit at six latency settings; determinism. All on SYNTHETIC feeds. See SIMULATOR.md |
+| Python bindings, features and sweep | python/tests/ | Round trip against the command line tool byte for byte, dtypes, ownership of arrays, error paths, feature values against hand computed cases. See the Python tests section |
+| Benchmark baseline equivalence | bench/bench_book.cpp (start-up check) | The std::map baseline and the engine produce identical event streams on every benchmark scenario and on a 400k operation workload with invalid input, before any number is taken |
 | Fuzzing | fuzz/ | Inputs nobody thought of: engine versus reference with invariants, under ASan and UBSan |
 
 ## The reference book
@@ -25,7 +27,7 @@ tests/support/reference_book.hpp is a std::map of price to std::deque implementa
 
 The reference book and the engine share an author and a specification. Both were written by the same person from the same document, so a misreading of the rules would appear in both implementations and the differential test would agree with itself. What it does establish is that the optimized data structures (ladder, bitmaps, intrusive lists, pool, id map) implement the documented rules and that nothing diverges over millions of operations. What it does not establish is that the rules are right.
 
-The planned independent check is Phase 4: replaying real LOBSTER messages and comparing the reconstructed book against the vendor orderbook snapshots, which were produced by a different system. Until that passes, the semantics in MATCHING_RULES.md should be read as the documented intent, not as a validated model of any venue. The unit tests that assert exact expected values, written separately from the reference, are a partial defense in the meantime.
+The planned independent check is replaying real LOBSTER messages (the tooling was built in Phase 4, the check itself has NOT been run) and comparing the reconstructed book against the vendor orderbook snapshots, which were produced by a different system. Until that passes, the semantics in MATCHING_RULES.md should be read as the documented intent, not as a validated model of any venue. The unit tests that assert exact expected values, written separately from the reference, are a partial defense in the meantime.
 
 ## Does the differential test actually detect bugs
 
@@ -65,7 +67,16 @@ Measured with gcov through gcovr, with line merging across template instantiatio
 
 Without merge-lines, gcovr counts a line once per template instantiation, which makes header-only code look worse or better than it is, depending on which instantiations a test happens to use. The merged number is the one to read. CI fails below 90 percent line coverage. The lines that remain uncovered are the unreachable FOK case in the post-match switch of Book::submit_impl, which exists to keep the switch exhaustive.
 
-Market data code (include/lobkit/md and src/md), same method: 91.8 percent of lines before the name tables were tested; the uncovered lines were the to_string tables (now tested) and a handful of error-handling lines such as a failed mmap and some defensive returns. The CI coverage job prints this figure without gating on it.
+Measured on the Phase 7 code with the commands above (GCC 13.3, merged lines, throw branches excluded), 221 C++ tests:
+
+| Code | Line coverage | Branch coverage |
+|---|---|---|
+| include/lobkit/book and src/book | 99.5 percent (608 of 611) | 97.1 percent (407 of 419) |
+| include/lobkit/md and src/md | 98.9 percent (557 of 563) | 96.1 percent (367 of 382) |
+| include/lobkit/sim and src/sim | 97.8 percent (609 of 623) | 90.0 percent (403 of 448) |
+| include/lobkit/infra | 100 percent (63 of 63) | 96.0 percent (24 of 25) |
+
+Only the book code is gated (90 percent lines) in CI; the others are printed. The uncovered md lines are error-handling lines such as a failed mmap and some defensive returns. Python code (python/lobkit, the bindings) and the benchmarks, tools and fuzz targets are not measured for coverage. Line coverage says the lines ran, not that the behavior was checked; the differential test, the mutation tool and the exact-value unit tests are what check behavior.
 
 ## Running longer
 
@@ -118,7 +129,7 @@ The extension is built with `-fsanitize=address,undefined` (Debug, GCC 13.3, `cm
 
     ASAN_OPTIONS=detect_leaks=0 LD_PRELOAD="$(g++ -print-file-name=libasan.so) $(g++ -print-file-name=libubsan.so)" PYTHONPATH=build/pysan/python python3 -m pytest python/tests
 
-Result on the Phase 6 code: 32 passed, no sanitizer report. The check that ASan was active: the module imports 26 sanitizer symbols and the runtime printed its init line. This exercises the zero-copy views (they outlive the result name in a test) and the capsule owned buffers. Leak checking is off because CPython does not free everything at exit, so leaks in the bindings are not covered by this run. CI runs the same steps in the python-sanitizers job.
+Result on the Phase 6 code: 32 passed, no sanitizer report. The check that ASan was active: the module imports 26 sanitizer symbols and the runtime printed its init line. This exercises the zero-copy views (they outlive the result name in a test) and the capsule owned buffers. Leak checking (LeakSanitizer, `detect_leaks=0`) is disabled in this run and in the python-sanitizers CI job, because CPython does not free everything at exit and every run would report interpreter allocations. What that leaves uncovered: memory leaks in the bindings themselves, for example a heap buffer that was handed to a capsule and never freed because the capsule destructor did not run, a SimResult kept alive by a reference cycle, or an error path that allocates before throwing. The tests check that views stay valid and that values are correct, not that buffers are released. Use after free, out of bounds access, and undefined behavior are covered; unreleased memory is not. To cover it, run with LeakSanitizer and a suppression file for CPython (`LSAN_OPTIONS=suppressions=lsan.supp`, with entries for the interpreter allocations), or run under valgrind with a Python built with `--without-pymalloc`; neither has been done. CI runs the same steps as above in the python-sanitizers job.
 
 ## Pre-release run of the mutation tool and the fuzz targets
 
