@@ -11,6 +11,7 @@ endif()
 
 option(LOBKIT_BUILD_TESTS "Build tests" ON)
 option(LOBKIT_WERROR "Treat warnings in project targets as errors" ON)
+option(LOBKIT_BUILD_FUZZ "Build libFuzzer targets (Clang only)" OFF)
 option(LOBKIT_FETCH_DEPS "Fetch missing dependencies with FetchContent (pinned SHAs)" ON)
 
 # Warnings are attached to project targets only, so third party code fetched
@@ -36,4 +37,11 @@ if(LOBKIT_BUILD_TESTS)
   enable_testing()
   include(cmake/Dependencies.cmake)
   add_subdirectory(tests)
+endif()
+
+if(LOBKIT_BUILD_FUZZ)
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    message(FATAL_ERROR "LOBKIT_BUILD_FUZZ requires Clang (libFuzzer)")
+  endif()
+  add_subdirectory(fuzz)
 endif()
