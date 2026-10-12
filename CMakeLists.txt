@@ -11,6 +11,8 @@ endif()
 
 option(LOBKIT_BUILD_TESTS "Build tests" ON)
 option(LOBKIT_WERROR "Treat warnings in project targets as errors" ON)
+option(LOBKIT_BUILD_BENCH "Build benchmarks (fetches Google Benchmark if needed)" OFF)
+set(LOBKIT_CACHE_LINE 128 CACHE STRING "Padding distance in bytes for cross-thread data (see docs/INFRA.md)")
 option(LOBKIT_BUILD_FUZZ "Build libFuzzer targets (Clang only)" OFF)
 option(LOBKIT_FETCH_DEPS "Fetch missing dependencies with FetchContent (pinned SHAs)" ON)
 
@@ -33,10 +35,23 @@ target_compile_features(lobkit_book PUBLIC cxx_std_20)
 target_link_libraries(lobkit_book PRIVATE lobkit_warnings)
 target_compile_options(lobkit_book PRIVATE -Wnull-dereference)
 
+find_package(Threads REQUIRED)
+
+# Header-only lock-free infrastructure (SPSC ring). No dependencies.
+add_library(lobkit_infra INTERFACE)
+target_include_directories(lobkit_infra INTERFACE include)
+target_compile_features(lobkit_infra INTERFACE cxx_std_20)
+target_compile_definitions(lobkit_infra INTERFACE LOBKIT_CACHE_LINE=${LOBKIT_CACHE_LINE})
+target_link_libraries(lobkit_infra INTERFACE Threads::Threads)
+
 if(LOBKIT_BUILD_TESTS)
   enable_testing()
   include(cmake/Dependencies.cmake)
   add_subdirectory(tests)
+endif()
+
+if(LOBKIT_BUILD_BENCH)
+  add_subdirectory(bench)
 endif()
 
 if(LOBKIT_BUILD_FUZZ)

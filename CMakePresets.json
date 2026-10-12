@@ -68,6 +68,14 @@
         "LOBKIT_BUILD_FUZZ": "ON",
         "LOBKIT_BUILD_TESTS": "OFF"
       }
+    },
+    {
+      "name": "bench",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "LOBKIT_BUILD_BENCH": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -98,6 +106,10 @@
     {
       "name": "fuzz",
       "configurePreset": "fuzz"
+    },
+    {
+      "name": "bench",
+      "configurePreset": "bench"
     }
   ],
   "testPresets": [
