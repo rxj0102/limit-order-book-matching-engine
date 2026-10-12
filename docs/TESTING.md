@@ -144,6 +144,19 @@ Run on the code of commit 25d38f2 (Phase 6 plus the pybind11 pin), before any v0
 
 The working tree was clean after the mutation run (the tool restores the source). As before, these are coverage guided runs of a few minutes: no crash on the explored inputs, not a proof.
 
+## Full Clang matrix on the final tree
+
+Run before the v0.1.0 tag, on the tree of commit 53b3968 plus the Phase 8 documentation (Clang 18.1.3, Ubuntu, x86-64, warnings as errors, every project target rebuilt from the current sources):
+
+| Configuration | Result |
+|---|---|
+| Clang debug | 221 of 221 passed |
+| Clang release | no failures; 1 of the 221 is reported as skipped (the death test that needs the invariant macro, which is compiled out of Release) |
+| Clang ASan and UBSan (-fsanitize=address,undefined -fno-sanitize-recover=all) | 221 of 221 passed |
+| Clang TSan (-fsanitize=thread) | 217 of 217 passed; the allocation test is not built under Clang TSan (its runtime replaces operator new), which accounts for the 4 fewer tests |
+
+The GCC matrix (debug, release, asan, ubsan, tsan, coverage: 221 of 221 each) and the Python preset (222 of 222) were re-run on the same tree. The GitHub Actions result is a separate matter and is not recorded here.
+
 ## Which verification has actually been run
 
 | Verification | Run? | What it shows |

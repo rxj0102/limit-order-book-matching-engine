@@ -132,4 +132,4 @@ Nothing below is promised or scheduled.
 
 ## License
 
-MIT. See the LICENSE file.
+The intended license is MIT, but there is no LICENSE file on this branch yet; it is being added on main by the repository owner. Until that file exists, treat the license as unspecified. This paragraph is to be reduced to one line pointing at the LICENSE file once it does.

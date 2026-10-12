@@ -86,7 +86,7 @@ Every factual claim in README.md, mapped to the file or test that supports it, w
 |---|---|
 | Short limitation list | each item appears in docs/LIMITATIONS.md with its source document |
 | Documentation table | all files listed exist (checked by script) |
-| License MIT, LICENSE file | NOT in this branch. The repository owner is creating LICENSE on main; the README line is correct only once it exists |
+| License | NOT in this branch. The README now says the license is unspecified until main supplies LICENSE (flagged, per the owner's decision) |
 
 ## Claims changed or removed during the audit
 

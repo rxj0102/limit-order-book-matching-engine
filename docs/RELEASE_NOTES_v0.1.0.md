@@ -1,6 +1,6 @@
 # lobkit v0.1.0 release notes (prepared, not tagged)
 
-Status: DRAFT. The tag v0.1.0 does not exist. It is created locally only after the pull request that brings this work to main is merged, on the merge commit, and tags are pushed only with the repository owner's approval. If the work lands as several pull requests, split these notes to match.
+Status: DRAFT. The tag v0.1.0 does not exist. It is created locally only after the pull request that brings this work to main is merged, on the merge commit, and tags are pushed only with the repository owner's approval. The work is to land as one squash merge, so these are the single set of v0.1.0 notes; they would be split only if it landed as several pull requests.
 
 ## What this is
 
@@ -16,7 +16,7 @@ The first public version of lobkit: a C++20 limit order book matching engine, a 
 
 ## What was verified
 
-- 221 C++ tests pass on GCC 13.3 (debug, release, ASan, UBSan, TSan) and Clang 18.1 (debug, release, ASan, TSan with 217 tests); 32 Python tests pass, also under ASan and UBSan. Line coverage (GCC, merged lines): book 99.5 percent, md 98.9, sim 97.8, infra 100.
+- 221 C++ tests pass on GCC 13.3 (debug, release, ASan, UBSan, TSan) and on Clang 18.1.3 (debug, release, ASan with UBSan; TSan runs 217 because the allocation test is not built there), all re-run on the final tree (docs/TESTING.md); 32 Python tests pass, also under ASan and UBSan. Line coverage (GCC, merged lines): book 99.5 percent, md 98.9, sim 97.8, infra 100.
 - 28 hand written mutants: 26 killed, 2 equivalent as expected. Fuzz targets ran 301 seconds each without a crash.
 
 ## What was NOT verified
