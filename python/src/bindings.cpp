@@ -194,6 +194,7 @@ std::int64_t checked_i64(sim::Money2 v, const char* what) {
 
 // ---- configuration classes with keyword constructors -----------------------------------------
 
+// clang-format off
 #define BOOK_FIELDS(X) X(tick_size) X(base_price) X(num_levels) X(max_orders)
 #define SIMCFG_FIELDS(X) \
   X(submit_latency_ns)   \
@@ -204,6 +205,7 @@ std::int64_t checked_i64(sim::Money2 v, const char* what) {
   X(sigma0) X(sigma_floor) X(horizon_s) X(finite_horizon) X(session_end_s) X(min_horizon_s) \
       X(order_size) X(max_inventory) X(size_skew) X(tick) X(min_price) X(max_price)         \
           X(requote_interval_ns) X(requote_threshold_ticks) X(sigma_interval_ns) X(sigma_alpha)
+// clang-format on
 
 template <class T, class Setter>
 T from_kwargs(const py::kwargs& kw, Setter set) {
