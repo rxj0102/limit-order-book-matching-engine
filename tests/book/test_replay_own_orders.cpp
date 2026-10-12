@@ -93,6 +93,7 @@ TEST_F(OwnOrderTest, FeedOrderAheadOfOwnOrderBlocksTheFillAndIsCountedAsAnomaly)
   feed().apply_execute(kX2, 3, ++t);
   EXPECT_EQ(own_qty(), 5u);
   EXPECT_EQ(book().stats().queue_order_anomalies, 1u);
+  EXPECT_EQ(book().stats().anomalies(), 1u);
   EXPECT_EQ(book().find_order(kX2)->qty, 5u);  // the feed itself is still applied
   expect_valid();
 }
@@ -121,6 +122,8 @@ TEST_F(OwnOrderTest, FeedAddCrossingAnOwnRestingOrderTradesAndDisplacesFeedQuant
   EXPECT_EQ(book().find_order(kX1)->qty, 3u);
   EXPECT_EQ(book().stats().feed_add_displaced_qty, 5u);
   EXPECT_EQ(book().stats().feed_crossed_fills, 0u);
+  EXPECT_EQ(book().stats().feed_crossed_own_fills, 1u);
+  EXPECT_EQ(book().stats().anomalies(), 1u);
   expect_valid();
 }
 

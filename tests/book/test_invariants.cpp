@@ -91,3 +91,94 @@ TEST_F(CorruptionTest, DetectsIdMapDamage) {
   BookInspector::map(mut()).erase(2);
   expect_complaint("id map");
 }
+
+TEST_F(CorruptionTest, DetectsLevelInBothBitmaps) {
+  BookInspector::bids(mut()).set(600);
+  expect_complaint("both bitmaps");
+}
+TEST_F(CorruptionTest, DetectsResidueInEmptyLevel) {
+  BookInspector::levels(mut())[700].total_qty = 5;
+  expect_complaint("residue");
+}
+TEST_F(CorruptionTest, DetectsLinkOutOfRange) {
+  auto& pool = BookInspector::pool(mut());
+  pool[BookInspector::levels(mut())[500].head].next = 999999;
+  expect_complaint("out of range");
+}
+TEST_F(CorruptionTest, DetectsDeadOrderLinked) {
+  auto& pool = BookInspector::pool(mut());
+  pool[BookInspector::levels(mut())[500].head].flags = 0;
+  expect_complaint("dead order");
+}
+TEST_F(CorruptionTest, DetectsOrderLevelMismatch) {
+  auto& pool = BookInspector::pool(mut());
+  pool[BookInspector::levels(mut())[500].head].level = 7;
+  expect_complaint("level mismatch");
+}
+TEST_F(CorruptionTest, DetectsOrderSideMismatch) {
+  auto& pool = BookInspector::pool(mut());
+  pool[BookInspector::levels(mut())[500].head].side = Side::Ask;
+  expect_complaint("side mismatch");
+}
+TEST_F(CorruptionTest, DetectsZeroQuantityOrder) {
+  auto& pool = BookInspector::pool(mut());
+  pool[BookInspector::levels(mut())[500].head].qty = 0;
+  expect_complaint("zero quantity");
+}
+TEST_F(CorruptionTest, DetectsIdMapPointingAtWrongSlot) {
+  BookInspector::map(mut()).erase(1);
+  BookInspector::map(mut()).insert(1, 1);  // order 1 lives in slot 0
+  expect_complaint("does not point");
+}
+TEST_F(CorruptionTest, DetectsTailMismatch) {
+  auto& lv = BookInspector::levels(mut())[500];
+  lv.tail = lv.head;
+  expect_complaint("tail");
+}
+TEST_F(CorruptionTest, DetectsCountMismatch) {
+  BookInspector::levels(mut())[500].count = 7;
+  expect_complaint("count");
+}
+TEST_F(CorruptionTest, DetectsStaleBestAsk) {
+  BookInspector::best_ask(mut()) = 601;
+  expect_complaint("best ask");
+}
+TEST_F(CorruptionTest, DetectsExtraIdMapEntry) {
+  BookInspector::map(mut()).insert(999, 2);
+  expect_complaint("id map size");
+}
+TEST_F(CorruptionTest, DetectsLiveOrderOnFreeList) {
+  BookInspector::pool(mut())[3].flags = kOrderLive;  // slot 3 is the free list head
+  expect_complaint("free list");
+}
+TEST_F(CorruptionTest, DetectsFreeListCycle) {
+  BookInspector::pool(mut())[3].next = 3;
+  expect_complaint("cycle in free list");
+}
+TEST_F(CorruptionTest, DetectsFreeListThatLostSlots) {
+  BookInspector::pool(mut())[3].next = kNil;
+  expect_complaint("pool accounting");
+}
+TEST_F(CorruptionTest, ReportsOnlyTheFirstOfSeveralProblems) {
+  BookInspector::levels(mut())[500].count = 7;
+  BookInspector::best_ask(mut()) = 601;
+  EXPECT_TRUE(check_invariants(book()).has_value());
+}
+
+TEST(Invariants, MacroPassesOnHealthyBook) {
+  Engine<NullSink> e(small_cfg());
+  e.submit({1, px(500), 5, Side::Bid, OrderType::Limit, 0, 1});
+  LOBKIT_ASSERT_INVARIANTS(e.book());
+  SUCCEED();
+}
+
+TEST(InvariantsDeathTest, MacroAbortsOnCorruptBook) {
+#ifndef NDEBUG
+  Engine<NullSink> e(small_cfg());
+  e.submit({1, px(500), 5, Side::Bid, OrderType::Limit, 0, 1});
+  detail::BookInspector::levels(e.book())[500].total_qty = 99;
+  EXPECT_DEATH(LOBKIT_ASSERT_INVARIANTS(e.book()), "invariant violated");
+#else
+  GTEST_SKIP() << "assert macro is compiled out under NDEBUG";
+#endif
+}

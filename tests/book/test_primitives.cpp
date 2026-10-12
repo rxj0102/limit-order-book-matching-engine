@@ -111,5 +111,14 @@ TEST(Config, ValidationRejectsBadGrids) {
   c = BookConfig{};
   c.tick_size = INT64_MAX / 2;
   EXPECT_THROW(c.validate(), std::invalid_argument);
+  c = BookConfig{};
+  c.base_price = -1;
+  EXPECT_THROW(c.validate(), std::invalid_argument);
+  c = BookConfig{};
+  c.max_orders = 0;
+  EXPECT_THROW(c.validate(), std::invalid_argument);
+  c = BookConfig{};
+  c.num_levels = 1u << 25;
+  EXPECT_THROW(c.validate(), std::invalid_argument);
   EXPECT_NO_THROW(BookConfig{}.validate());
 }
