@@ -1,0 +1,14 @@
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  performance-*,
+  modernize-use-nullptr,
+  modernize-use-override,
+  readability-container-size-empty,
+  readability-redundant-*,
+  cppcoreguidelines-init-variables,
+  cppcoreguidelines-pro-type-cstyle-cast
+WarningsAsErrors: ''
+HeaderFilterRegex: 'include/lobkit/.*'
