@@ -27,6 +27,14 @@
       }
     },
     {
+      "name": "python",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "LOBKIT_BUILD_PYTHON": "ON"
+      }
+    },
+    {
       "name": "asan",
       "inherits": "base",
       "cacheVariables": {

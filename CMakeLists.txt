@@ -14,6 +14,7 @@ option(LOBKIT_WERROR "Treat warnings in project targets as errors" ON)
 option(LOBKIT_BUILD_BENCH "Build benchmarks (fetches Google Benchmark if needed)" OFF)
 set(LOBKIT_CACHE_LINE 128 CACHE STRING "Padding distance in bytes for cross-thread data (see docs/INFRA.md)")
 option(LOBKIT_BUILD_FUZZ "Build libFuzzer targets (Clang only)" OFF)
+option(LOBKIT_BUILD_PYTHON "Build the lobkit._core Python extension (needs Python development files and pybind11)" OFF)
 option(LOBKIT_FETCH_DEPS "Fetch missing dependencies with FetchContent (pinned SHAs)" ON)
 
 # Warnings are attached to project targets only, so third party code fetched
@@ -68,6 +69,10 @@ endif()
 
 if(LOBKIT_BUILD_BENCH)
   add_subdirectory(bench)
+endif()
+
+if(LOBKIT_BUILD_PYTHON)
+  add_subdirectory(python)
 endif()
 
 if(LOBKIT_BUILD_FUZZ)

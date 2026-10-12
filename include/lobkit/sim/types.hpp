@@ -80,6 +80,8 @@ struct PathSample {
   std::int64_t known_inventory_lag;  // true inventory minus what the strategy has been told: 0 with
                                      // no latency
   Money2 spread2, inventory2, fees2;
+  std::int64_t mid2;  // market mid in half native units at the sample time (0 until a two sided
+                      // market exists)
 };
 
 struct SimStats {

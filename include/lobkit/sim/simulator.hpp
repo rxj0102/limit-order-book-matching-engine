@@ -179,8 +179,8 @@ class Simulator {
   }
 
   void record_sample(Timestamp ts) {
-    path_.push_back(
-        {ts, inventory_, inventory_ - known_inventory_, pnl_.spread2, pnl_.inventory2, pnl_.fees2});
+    path_.push_back({ts, inventory_, inventory_ - known_inventory_, pnl_.spread2, pnl_.inventory2,
+                     pnl_.fees2, mid_valid_ ? mid2_ : 0});
   }
 
   // ---- feed ---------------------------------------------------------------
