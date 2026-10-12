@@ -1,0 +1,71 @@
+# Testing
+
+How lobkit is checked, and what each check can and cannot tell you.
+
+## Layers
+
+| Layer | Where | What it catches |
+|---|---|---|
+| Unit tests | tests/book/test_orders.cpp, test_modify.cpp, test_replay_*.cpp | Specified behavior of each order type, edge case and replay rule |
+| Primitive tests | tests/book/test_primitives.cpp | Bitmap, id map and pool against standard containers under random operations |
+| Invariant checker | include/lobkit/book/invariants.hpp, tests/book/test_invariants.cpp | Structural damage: crossed book, wrong aggregates, broken links, pool leaks. Every failure path has a corruption test that breaks one structure and expects a specific complaint |
+| Differential test | tests/book/test_differential.cpp | Any behavioral disagreement with the reference book |
+| Determinism test | tests/book/test_determinism.cpp | Non-reproducible output, accidental semantic change (golden hashes) |
+| Allocation test | tests/book/test_no_alloc.cpp | Any heap call during matching, cancel, modify or replay |
+| Fuzzing | fuzz/ | Inputs nobody thought of: engine versus reference with invariants, under ASan and UBSan |
+
+## The reference book
+
+tests/support/reference_book.hpp is a std::map of price to std::deque implementation written from docs/MATCHING_RULES.md without sharing code with the engine. It uses native prices, not ladder indices, linear searches, and an unordered_map for liveness. It is slow on purpose. The differential test compares the full event stream after every operation (byte for byte, including sequence numbers), compares the visible state of both books (touch, depth and queue order at every price) every 1009 operations, runs the invariant checker every 997 operations, and compares the statistics counters at the end.
+
+An oracle is only as good as its independence, and both implementations were written by the same author from the same document. A misreading of the rules would appear in both and go unnoticed. The unit tests that assert exact expected values, written separately from the reference, are the partial defense against that.
+
+## Does the differential test actually detect bugs
+
+A test that never fails proves nothing, so the engine was mutated by hand and the test was run against each mutant (200,000 operations per scenario). This is a one-off sanity check, not a CI job, and the list below is what was run, not a full mutation analysis.
+
+| Mutation | Result |
+|---|---|
+| Resting orders appended at the head instead of the tail | detected |
+| Modify keeps priority on a size increase | detected |
+| Post-only allowed to trade at an equal price | detected |
+| FOK availability off by one | detected |
+| Feed execute never fills own orders | detected |
+| Feed execute ignores feed orders ahead of an own order | detected |
+| Self-trade flag set for the feed owner | detected |
+| Market Ack carries the price field | detected |
+| IOC remainder reported with the wrong reason | detected |
+| Pool exhaustion check skipped for post-only | detected (crash) |
+| Feed reduce reports the wrong quantity | detected |
+| Aggregate quantity not updated on feed execute | detected |
+| Emit Modify before removing the old order | not detected: equivalent mutant (no events are emitted by the removal) |
+| Search the next ask from level + 1 after clearing level | not detected: equivalent mutant (the bit is already cleared) |
+
+## Coverage
+
+Measured with gcov through gcovr, with line merging across template instantiations, on the code under include/lobkit/book and src/book:
+
+    cmake --preset coverage && cmake --build --preset coverage && ctest --preset coverage
+    gcovr -r . build/coverage --filter include/lobkit/book/ --filter src/book/ --exclude-throw-branches --merge-lines --print-summary
+
+Without merge-lines, gcovr counts a line once per template instantiation, which makes header-only code look worse or better than it is, depending on which instantiations a test happens to use. The merged number is the one to read. CI fails below 90 percent line coverage. The lines that remain uncovered are the unreachable FOK case in the post-match switch of Book::submit_impl, which exists to keep the switch exhaustive.
+
+## Running longer
+
+    LOBKIT_DIFF_OPS=20000000 ctest --preset release -R Differential
+
+runs 20 million operations per scenario (five scenarios). The default is one million per scenario.
+
+## Fuzzing
+
+The libFuzzer target needs Clang with the compiler runtime installed (on Ubuntu, libclang-rt-dev).
+
+    cmake --preset fuzz && cmake --build --preset fuzz
+    mkdir -p /tmp/corpus && cp fuzz/corpus/engine/* /tmp/corpus/
+    build/fuzz/fuzz/fuzz_engine /tmp/corpus -max_total_time=300
+
+Without libFuzzer (for example with GCC), the ctest entry fuzz_engine_corpus replays fuzz/corpus/engine and fuzz/regressions through the same entry point. Any crash found by the fuzzer should be minimized and saved in fuzz/regressions together with a regression test.
+
+The seed corpus is generated by fuzz/make_seeds.py. The input format is documented in fuzz/engine_input.hpp.
+
+The message parser fuzz target arrives with the parsers in Phase 4.

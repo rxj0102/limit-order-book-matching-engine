@@ -45,7 +45,31 @@ jobs:
       - run: cmake --build --preset coverage
       - run: ctest --preset coverage
       - name: Coverage summary for the book code
-        run: gcovr -r . build/coverage --filter 'include/lobkit/book/' --exclude-throw-branches --print-summary
+        run: gcovr -r . build/coverage --filter 'include/lobkit/book/' --filter 'src/book/' --exclude-throw-branches --merge-lines --print-summary --fail-under-line 90
+
+  clang-sanitizers:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libclang-rt-18-dev
+      - name: Configure
+        run: >
+          CC=clang CXX=clang++ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all"
+      - run: cmake --build build
+      - run: ctest --test-dir build --output-on-failure
+
+  fuzz-smoke:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libclang-rt-18-dev
+      - run: cmake --preset fuzz
+      - run: cmake --build --preset fuzz
+      - name: Fuzz for 60 seconds from the committed corpus
+        run: |
+          mkdir -p corpus && cp fuzz/corpus/engine/* corpus/
+          build/fuzz/fuzz/fuzz_engine corpus -max_total_time=60
 
   format:
     runs-on: ubuntu-24.04
