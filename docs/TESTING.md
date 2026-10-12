@@ -8,38 +8,50 @@ How lobkit is checked, and what each check can and cannot tell you.
 |---|---|---|
 | Unit tests | tests/book/test_orders.cpp, test_modify.cpp, test_replay_*.cpp | Specified behavior of each order type, edge case and replay rule |
 | Primitive tests | tests/book/test_primitives.cpp | Bitmap, id map and pool against standard containers under random operations |
-| Invariant checker | include/lobkit/book/invariants.hpp, tests/book/test_invariants.cpp | Structural damage: crossed book, wrong aggregates, broken links, pool leaks. Every failure path has a corruption test that breaks one structure and expects a specific complaint |
+| Invariant checker | include/lobkit/book/invariants.hpp, tests/book/test_invariants.cpp | Structural damage: crossed book, wrong aggregates, broken links, pool leaks. Every failure path has a corruption test that breaks one structure and expects a specific complaint. Every traversal is bounded by the pool capacity or the table size, so corruption (a cycle, a wild link, a full id table) is reported and never hangs; tests cover each of these |
 | Differential test | tests/book/test_differential.cpp | Any behavioral disagreement with the reference book |
 | Determinism test | tests/book/test_determinism.cpp | Non-reproducible output, accidental semantic change (golden hashes) |
 | Allocation test | tests/book/test_no_alloc.cpp | Any heap call during matching, cancel, modify or replay |
+| SPSC ring | tests/infra/ | Edge cases (empty, full, wraparound, counter overflow, batches across the end) and a timed two-thread stress test checking order, loss, duplication and torn reads, also run under TSan. See INFRA.md |
 | Fuzzing | fuzz/ | Inputs nobody thought of: engine versus reference with invariants, under ASan and UBSan |
 
 ## The reference book
 
 tests/support/reference_book.hpp is a std::map of price to std::deque implementation written from docs/MATCHING_RULES.md without sharing code with the engine. It uses native prices, not ladder indices, linear searches, and an unordered_map for liveness. It is slow on purpose. The differential test compares the full event stream after every operation (byte for byte, including sequence numbers), compares the visible state of both books (touch, depth and queue order at every price) every 1009 operations, runs the invariant checker every 997 operations, and compares the statistics counters at the end.
 
-An oracle is only as good as its independence, and both implementations were written by the same author from the same document. A misreading of the rules would appear in both and go unnoticed. The unit tests that assert exact expected values, written separately from the reference, are the partial defense against that.
+### Independence, and what this test cannot show
+
+The reference book and the engine share an author and a specification. Both were written by the same person from the same document, so a misreading of the rules would appear in both implementations and the differential test would agree with itself. What it does establish is that the optimized data structures (ladder, bitmaps, intrusive lists, pool, id map) implement the documented rules and that nothing diverges over millions of operations. What it does not establish is that the rules are right.
+
+The planned independent check is Phase 4: replaying real LOBSTER messages and comparing the reconstructed book against the vendor orderbook snapshots, which were produced by a different system. Until that passes, the semantics in MATCHING_RULES.md should be read as the documented intent, not as a validated model of any venue. The unit tests that assert exact expected values, written separately from the reference, are a partial defense in the meantime.
 
 ## Does the differential test actually detect bugs
 
-A test that never fails proves nothing, so the engine was mutated by hand and the test was run against each mutant (200,000 operations per scenario). This is a one-off sanity check, not a CI job, and the list below is what was run, not a full mutation analysis.
+A test that never fails proves nothing, so a fixed list of hand written bugs is applied to the engine one at a time and the differential test is run against each. This is a manual sanity tool, not a CI job and not a full mutation analysis.
 
-| Mutation | Result |
+    python3 -I tools/mutation/run.py --build-dir build/release          # runs every mutant (a few minutes)
+    python3 -I tools/mutation/run.py --check                            # only verifies the fragments still match
+
+The mutants live in tools/mutation/mutants.py, each with the exact text it replaces and whether it must be killed or is equivalent. The script exits non-zero if any mutant behaves differently from what the list says. It edits include/lobkit/book/book.hpp in place and restores it afterwards, so run it on a clean working tree and not while building anything else.
+
+Result of the last run (200,000 operations per scenario, GCC 13.3, release): all 12 killable mutants were killed (one of them by a crash, which the tool counts as killed), and the 2 equivalent mutants survived as expected.
+
+| Mutant | Result |
 |---|---|
-| Resting orders appended at the head instead of the tail | detected |
-| Modify keeps priority on a size increase | detected |
-| Post-only allowed to trade at an equal price | detected |
-| FOK availability off by one | detected |
-| Feed execute never fills own orders | detected |
-| Feed execute ignores feed orders ahead of an own order | detected |
-| Self-trade flag set for the feed owner | detected |
-| Market Ack carries the price field | detected |
-| IOC remainder reported with the wrong reason | detected |
-| Pool exhaustion check skipped for post-only | detected (crash) |
-| Feed reduce reports the wrong quantity | detected |
-| Aggregate quantity not updated on feed execute | detected |
-| Emit Modify before removing the old order | not detected: equivalent mutant (no events are emitted by the removal) |
-| Search the next ask from level + 1 after clearing level | not detected: equivalent mutant (the bit is already cleared) |
+| Resting orders appended at the head instead of the tail | killed |
+| Modify keeps priority on a size increase | killed |
+| Post-only allowed to trade at an equal price | killed |
+| FOK availability off by one | killed |
+| Feed execute never fills own orders | killed |
+| Feed execute ignores feed orders ahead of an own order | killed |
+| Self-trade flag set for the feed owner | killed |
+| Market Ack carries the price field | killed |
+| IOC remainder reported with the wrong reason | killed |
+| Pool exhaustion check skipped for post-only | killed (crash) |
+| Feed reduce reports the wrong quantity | killed |
+| Aggregate quantity not updated on feed execute | killed |
+| Modify event emitted before the old order is removed | survives: equivalent. remove_order emits no events and the Modify event is built from values copied before the removal, so swapping the two statements changes neither the event stream nor the state. |
+| Next ask searched from level + 1 after clearing level | survives: equivalent. The bit for the level was cleared on the line above, so a search starting at level or at level + 1 returns the same index. |
 
 ## Coverage
 
