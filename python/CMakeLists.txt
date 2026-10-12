@@ -17,7 +17,7 @@ if(NOT pybind11_FOUND)
   include(FetchContent)
   FetchContent_Declare(pybind11
     GIT_REPOSITORY https://github.com/pybind/pybind11.git
-    GIT_TAG a2e59f0e7065404b44dfe92a28aca47ba1378dc4  # v2.13.6
+    GIT_TAG 97bf890db679505a14dfe547a5e77bb2bd05dc90  # v3.1.0 (the version the bindings are tested with)
   )
   FetchContent_MakeAvailable(pybind11)
 endif()
@@ -26,6 +26,9 @@ pybind11_add_module(lobkit_core src/bindings.cpp)
 set_target_properties(lobkit_core PROPERTIES
   OUTPUT_NAME _core
   LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/python/lobkit)
+# The static libraries end up inside a shared module, so they must be position independent
+# (sanitizer builds fail to link otherwise).
+set_target_properties(lobkit_book lobkit_md lobkit_sim PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(lobkit_core PRIVATE lobkit_sim)
 # Warnings are on for our code; pybind11 headers trip -Wold-style-cast and -Wconversion in macros,
 # so the bindings use a smaller set and -Werror stays on for it.

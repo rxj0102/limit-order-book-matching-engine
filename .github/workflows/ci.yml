@@ -107,7 +107,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: python3 -m pip install numpy matplotlib pytest pybind11
+      - run: python3 -m pip install numpy matplotlib pytest pybind11==3.1.0
       - run: cmake --preset python
       - run: cmake --build --preset python
       - run: ctest --preset python --output-on-failure
@@ -115,6 +115,22 @@ jobs:
         run: |
           PYTHONPATH=build/python/python python3 python/analysis/sweep.py --seeds 3 --messages 5000 \
             --gammas 0.05 0.5 --latencies-us 0 1000 --out sweep_ci
+
+  python-sanitizers:
+    # ASan and UBSan on the extension; the runtimes are preloaded because Python itself is not
+    # instrumented. Leak checking is off because CPython does not free everything at exit.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m pip install numpy matplotlib pytest pybind11==3.1.0
+      - run: >
+          cmake -S . -B build/pysan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLOBKIT_BUILD_PYTHON=ON
+          -DLOBKIT_BUILD_TESTS=OFF
+          -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all"
+      - run: cmake --build build/pysan
+      - run: |
+          ASAN_OPTIONS=detect_leaks=0 LD_PRELOAD="$(g++ -print-file-name=libasan.so) $(g++ -print-file-name=libubsan.so)" \
+            PYTHONPATH=build/pysan/python python3 -m pytest -q python/tests
 
   format:
     runs-on: ubuntu-24.04

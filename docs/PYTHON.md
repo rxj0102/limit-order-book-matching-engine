@@ -12,7 +12,7 @@ The bindings are an optional CMake target. The C++ core builds and tests without
     ctest --preset python                       # C++ tests plus pytest (test name python_pytest)
     PYTHONPATH=build/python/python python3 -m pytest python/tests
 
-The option is LOBKIT_BUILD_PYTHON (default OFF). pybind11 is taken from the active Python (pip install pybind11) if present. Otherwise it is fetched at a pinned commit when LOBKIT_FETCH_DEPS is ON. The fetch path pins release 2.13.6 and has not been exercised in this environment, where the pip copy (3.1.0) was used.
+The option is LOBKIT_BUILD_PYTHON (default OFF). pybind11 is taken from the active Python (pip install pybind11) if present. Otherwise it is fetched at a pinned commit when LOBKIT_FETCH_DEPS is ON. The fetch path pins release 3.1.0 (commit 97bf890, checked with git ls-remote), the version the bindings are tested with. The fetch path was built and imported once with the pip copy disabled; CI installs pybind11==3.1.0 from pip.
 
 ## What is exposed (module lobkit, compiled part lobkit._core)
 
