@@ -20,3 +20,10 @@ foreach(t bench_queues bench_queue_latency bench_false_sharing bench_interleaved
   target_link_libraries(${t} PRIVATE lobkit_infra lobkit_warnings Threads::Threads)
 endforeach()
 target_link_libraries(bench_queues PRIVATE benchmark::benchmark)
+
+string(TOUPPER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_UPPER)
+# Book engine benchmarks and the std::map baseline. Include tests/support for the shared workload generator.
+add_executable(bench_book bench_book.cpp)
+target_include_directories(bench_book PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/tests/support)
+target_link_libraries(bench_book PRIVATE lobkit_md lobkit_warnings benchmark::benchmark Threads::Threads)
+target_compile_definitions(bench_book PRIVATE LOBKIT_BENCH_FLAGS="${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${CMAKE_BUILD_TYPE_UPPER}} build=${CMAKE_BUILD_TYPE} ${LOBKIT_BENCH_EXTRA_FLAGS}")
