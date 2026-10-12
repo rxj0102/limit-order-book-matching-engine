@@ -195,14 +195,14 @@ std::int64_t checked_i64(sim::Money2 v, const char* what) {
 // ---- configuration classes with keyword constructors -----------------------------------------
 
 #define BOOK_FIELDS(X) X(tick_size) X(base_price) X(num_levels) X(max_orders)
-#define SIMCFG_FIELDS(X)                                                             \
-  X(submit_latency_ns)                                                               \
-  X(ack_latency_ns) X(md_latency_ns) X(maker_fee) X(taker_fee) X(sample_interval_ns) \
-      X(record_fills)
-#define AS_FIELDS(X)                                                                             \
-  X(gamma)                                                                                       \
-  X(k) X(sigma0) X(sigma_floor) X(horizon_s) X(finite_horizon) X(session_end_s) X(min_horizon_s) \
-      X(order_size) X(max_inventory) X(size_skew) X(tick) X(min_price) X(max_price)              \
+#define SIMCFG_FIELDS(X) \
+  X(submit_latency_ns)   \
+  X(ack_latency_ns) X(md_latency_ns) X(maker_fee) X(taker_fee) X(sample_interval_ns) X(record_fills)
+#define AS_FIELDS(X)                                                                        \
+  X(gamma)                                                                                  \
+  X(k)                                                                                      \
+  X(sigma0) X(sigma_floor) X(horizon_s) X(finite_horizon) X(session_end_s) X(min_horizon_s) \
+      X(order_size) X(max_inventory) X(size_skew) X(tick) X(min_price) X(max_price)         \
           X(requote_interval_ns) X(requote_threshold_ticks) X(sigma_interval_ns) X(sigma_alpha)
 
 template <class T, class Setter>
