@@ -145,14 +145,14 @@ Read these before any number above.
 ## Environment
 
 ```
-date (UTC): 2026-10-12T16:58:43+00:00
-git commit: 0d39892
+date (UTC): 2026-10-12T17:08:03+00:00
+git commit: 7d12eac
 cpu: Intel(R) Xeon(R) Processor @ 2.10GHz, logical cpus: 4
 os: Linux-6.18.44-fc-v114-x86_64-with-glibc2.39
 virtualization: KVM guest VM, no governor control, timings are indicative only
 python: 3.13.16, numpy 2.5.3, matplotlib 3.11.2
 compiler of the extension: c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
-sweep wall time: 14.2 s with 4 worker threads (30 seeds x 5 gammas x 5 latencies = 750 simulations of 100000 messages)
+sweep wall time: 14.3 s with 4 worker threads (30 seeds x 5 gammas x 5 latencies = 750 simulations of 100000 messages)
 feed span per seed: 99.8 to 100.5 seconds
 command: python/analysis/sweep.py --out docs/results/phase6
 ```
