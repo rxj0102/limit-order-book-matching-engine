@@ -48,14 +48,23 @@ jobs:
         run: gcovr -r . build/coverage --filter 'include/lobkit/book/' --filter 'src/book/' --exclude-throw-branches --merge-lines --print-summary --fail-under-line 90
 
   clang-sanitizers:
+    name: clang ${{ matrix.name }}
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: asan+ubsan
+            flags: -fsanitize=address,undefined -fno-sanitize-recover=all
+          - name: tsan
+            flags: -fsanitize=thread
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y libclang-rt-18-dev
       - name: Configure
         run: >
           CC=clang CXX=clang++ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
-          -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all"
+          -DCMAKE_CXX_FLAGS="${{ matrix.flags }}"
       - run: cmake --build build
       - run: ctest --test-dir build --output-on-failure
 
@@ -70,6 +79,18 @@ jobs:
         run: |
           mkdir -p corpus && cp fuzz/corpus/engine/* corpus/
           build/fuzz/fuzz/fuzz_engine corpus -max_total_time=60
+
+  bench-smoke:
+    # Proves the benchmarks build and run. Shared runners are far too noisy to
+    # publish numbers from, so nothing here is recorded.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake --preset bench
+      - run: cmake --build --preset bench
+      - run: build/bench/bench/bench_queues --benchmark_filter='spsc_ring/payload8/64'
+      - run: LOBKIT_LAT_ITEMS=2000 build/bench/bench/bench_queue_latency
+      - run: LOBKIT_ROUNDS=1 build/bench/bench/bench_interleaved
 
   format:
     runs-on: ubuntu-24.04

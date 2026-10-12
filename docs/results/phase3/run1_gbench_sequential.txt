@@ -1,0 +1,125 @@
+### latency
+producer cpu 1, consumer cpu 2 (4 visible); tsc 2.1000 GHz
+timer overhead (lfence+rdtsc+lfence back to back): median 30 ns, p99 33 ns
+arrival period 2000 ns, 100000 items per run, first 10% discarded, 5 runs, median across runs
+
+queue         batch   p50 ns    p90 ns    p99 ns  p99.9 ns     max ns   worst max   mean ns   neg
+spsc_ring         1      354       407     51301    497447     609568     1439807      3031     0
+mutex_queue       1      934      1136    170119    967273    1326643     1920796      6663     0
+naive_atomic      1      513       572     19739    359843     663109     1837353      2023     0
+spsc_ring        16    16414     28514     52533    362852    1391492     4107548     18199     0
+mutex_queue      16    17053     30169     43215     77552     638789     1259877     17492     0
+naive_atomic     16    17831     30190     57507    693007     869126     2406843     20441     0
+spsc_ring        64    66605    118800    163847    753231    1280968     2002662     69601     0
+mutex_queue      64    73630    125693    163739    420784     648573     1677986     74487     0
+naive_atomic     64    71809    121230    149395    856139    1795466     4428586     73576     0
+### throughput
+2026-10-12T01:39:10+00:00
+Running build/bench/bench/bench_queues
+Run on (4 X 2100 MHz CPU s)
+CPU Caches:
+  L1 Data 48 KiB (x4)
+  L1 Instruction 32 KiB (x4)
+  L2 Unified 2048 KiB (x4)
+  L3 Unified 266240 KiB (x1)
+Load Average: 1.16, 1.59, 0.95
+-----------------------------------------------------------------------------------------------------------------------------------------
+Benchmark                                                                               Time             CPU   Iterations UserCounters...
+-----------------------------------------------------------------------------------------------------------------------------------------
+spsc_ring/payload8/1/iterations:2/repeats:7/real_time_mean                       83792389 ns     83210715 ns            7 items_per_second=23.9936M/s pinned=1
+spsc_ring/payload8/1/iterations:2/repeats:7/real_time_median                     81190466 ns     81112648 ns            7 items_per_second=24.6334M/s pinned=1
+spsc_ring/payload8/1/iterations:2/repeats:7/real_time_stddev                      6449438 ns      6476647 ns            7 items_per_second=1.90072M/s pinned=0
+spsc_ring/payload8/1/iterations:2/repeats:7/real_time_cv                             7.70 %          7.78 %             7 items_per_second=7.92% pinned=0.00%
+spsc_ring/payload8/16/iterations:2/repeats:7/real_time_mean                      17409552 ns     17347052 ns            7 items_per_second=116.103M/s pinned=1
+spsc_ring/payload8/16/iterations:2/repeats:7/real_time_median                    16078193 ns     16002250 ns            7 items_per_second=124.392M/s pinned=1
+spsc_ring/payload8/16/iterations:2/repeats:7/real_time_stddev                     2010909 ns      2019965 ns            7 items_per_second=12.3693M/s pinned=0
+spsc_ring/payload8/16/iterations:2/repeats:7/real_time_cv                           11.55 %         11.64 %             7 items_per_second=10.65% pinned=0.00%
+spsc_ring/payload8/64/iterations:2/repeats:7/real_time_mean                      10763915 ns     10713373 ns            7 items_per_second=189.275M/s pinned=1
+spsc_ring/payload8/64/iterations:2/repeats:7/real_time_median                    10514929 ns     10470127 ns            7 items_per_second=190.206M/s pinned=1
+spsc_ring/payload8/64/iterations:2/repeats:7/real_time_stddev                     1483889 ns      1482891 ns            7 items_per_second=29.6632M/s pinned=0
+spsc_ring/payload8/64/iterations:2/repeats:7/real_time_cv                           13.79 %         13.84 %             7 items_per_second=15.67% pinned=0.00%
+mutex_queue/payload8/1/iterations:2/repeats:7/real_time_mean                    732225559 ns    704887164 ns            7 items_per_second=2.74762M/s pinned=1
+mutex_queue/payload8/1/iterations:2/repeats:7/real_time_median                  730494529 ns    705108642 ns            7 items_per_second=2.73787M/s pinned=1
+mutex_queue/payload8/1/iterations:2/repeats:7/real_time_stddev                   60090608 ns     59946849 ns            7 items_per_second=231.271k/s pinned=0
+mutex_queue/payload8/1/iterations:2/repeats:7/real_time_cv                           8.21 %          8.50 %             7 items_per_second=8.42% pinned=0.00%
+mutex_queue/payload8/16/iterations:2/repeats:7/real_time_mean                    91978295 ns     85029284 ns            7 items_per_second=22.0012M/s pinned=1
+mutex_queue/payload8/16/iterations:2/repeats:7/real_time_median                  91245532 ns     85263596 ns            7 items_per_second=21.9189M/s pinned=1
+mutex_queue/payload8/16/iterations:2/repeats:7/real_time_stddev                  10708407 ns      9782579 ns            7 items_per_second=2.59826M/s pinned=0
+mutex_queue/payload8/16/iterations:2/repeats:7/real_time_cv                         11.64 %         11.50 %             7 items_per_second=11.81% pinned=0.00%
+mutex_queue/payload8/64/iterations:2/repeats:7/real_time_mean                    52492602 ns     40650947 ns            7 items_per_second=38.2677M/s pinned=1
+mutex_queue/payload8/64/iterations:2/repeats:7/real_time_median                  52144806 ns     39929741 ns            7 items_per_second=38.3547M/s pinned=1
+mutex_queue/payload8/64/iterations:2/repeats:7/real_time_stddev                   3800773 ns      4470392 ns            7 items_per_second=2.69688M/s pinned=0
+mutex_queue/payload8/64/iterations:2/repeats:7/real_time_cv                          7.24 %         11.00 %             7 items_per_second=7.05% pinned=0.00%
+naive_atomic/payload8/1/iterations:2/repeats:7/real_time_mean                   268920274 ns    267064750 ns            7 items_per_second=7.48738M/s pinned=1
+naive_atomic/payload8/1/iterations:2/repeats:7/real_time_median                 263188813 ns    262412679 ns            7 items_per_second=7.59911M/s pinned=1
+naive_atomic/payload8/1/iterations:2/repeats:7/real_time_stddev                  23808310 ns     23876169 ns            7 items_per_second=665.01k/s pinned=0
+naive_atomic/payload8/1/iterations:2/repeats:7/real_time_cv                          8.85 %          8.94 %             7 items_per_second=8.88% pinned=0.00%
+naive_atomic/payload8/16/iterations:2/repeats:7/real_time_mean                  267873619 ns    264354853 ns            7 items_per_second=7.48656M/s pinned=1
+naive_atomic/payload8/16/iterations:2/repeats:7/real_time_median                262379135 ns    260667616 ns            7 items_per_second=7.62256M/s pinned=1
+naive_atomic/payload8/16/iterations:2/repeats:7/real_time_stddev                 15273838 ns     16022334 ns            7 items_per_second=416.787k/s pinned=0
+naive_atomic/payload8/16/iterations:2/repeats:7/real_time_cv                         5.70 %          6.06 %             7 items_per_second=5.57% pinned=0.00%
+naive_atomic/payload8/64/iterations:2/repeats:7/real_time_mean                  265134428 ns    264310899 ns            7 items_per_second=7.55569M/s pinned=1
+naive_atomic/payload8/64/iterations:2/repeats:7/real_time_median                267183211 ns    266937264 ns            7 items_per_second=7.4855M/s pinned=1
+naive_atomic/payload8/64/iterations:2/repeats:7/real_time_stddev                 11484551 ns     10887242 ns            7 items_per_second=332.81k/s pinned=0
+naive_atomic/payload8/64/iterations:2/repeats:7/real_time_cv                         4.33 %          4.12 %             7 items_per_second=4.40% pinned=0.00%
+spsc_ring/payload48/1/iterations:2/repeats:7/real_time_mean                     107551181 ns    107380415 ns            7 items_per_second=18.8111M/s pinned=1
+spsc_ring/payload48/1/iterations:2/repeats:7/real_time_median                   110979679 ns    110805322 ns            7 items_per_second=18.0213M/s pinned=1
+spsc_ring/payload48/1/iterations:2/repeats:7/real_time_stddev                    12474518 ns     12453196 ns            7 items_per_second=2.17804M/s pinned=0
+spsc_ring/payload48/1/iterations:2/repeats:7/real_time_cv                           11.60 %         11.60 %             7 items_per_second=11.58% pinned=0.00%
+spsc_ring/payload48/16/iterations:2/repeats:7/real_time_mean                     33384108 ns     33319794 ns            7 items_per_second=60.1916M/s pinned=1
+spsc_ring/payload48/16/iterations:2/repeats:7/real_time_median                   32807895 ns     32750184 ns            7 items_per_second=60.9609M/s pinned=1
+spsc_ring/payload48/16/iterations:2/repeats:7/real_time_stddev                    2523884 ns      2529074 ns            7 items_per_second=4.37218M/s pinned=0
+spsc_ring/payload48/16/iterations:2/repeats:7/real_time_cv                           7.56 %          7.59 %             7 items_per_second=7.26% pinned=0.00%
+spsc_ring/payload48/64/iterations:2/repeats:7/real_time_mean                     16781183 ns     16721081 ns            7 items_per_second=119.588M/s pinned=1
+spsc_ring/payload48/64/iterations:2/repeats:7/real_time_median                   16578955 ns     16525659 ns            7 items_per_second=120.635M/s pinned=1
+spsc_ring/payload48/64/iterations:2/repeats:7/real_time_stddev                    1090805 ns      1085604 ns            7 items_per_second=7.31998M/s pinned=0
+spsc_ring/payload48/64/iterations:2/repeats:7/real_time_cv                           6.50 %          6.49 %             7 items_per_second=6.12% pinned=0.00%
+mutex_queue/payload48/1/iterations:2/repeats:7/real_time_mean                   594898394 ns    563129631 ns            7 items_per_second=3.37617M/s pinned=1
+mutex_queue/payload48/1/iterations:2/repeats:7/real_time_median                 589443429 ns    554853279 ns            7 items_per_second=3.39303M/s pinned=1
+mutex_queue/payload48/1/iterations:2/repeats:7/real_time_stddev                  41795762 ns     35319526 ns            7 items_per_second=237.267k/s pinned=0
+mutex_queue/payload48/1/iterations:2/repeats:7/real_time_cv                          7.03 %          6.27 %             7 items_per_second=7.03% pinned=0.00%
+mutex_queue/payload48/16/iterations:2/repeats:7/real_time_mean                   92091091 ns     76644606 ns            7 items_per_second=21.9535M/s pinned=1
+mutex_queue/payload48/16/iterations:2/repeats:7/real_time_median                 87697984 ns     73074616 ns            7 items_per_second=22.8055M/s pinned=1
+mutex_queue/payload48/16/iterations:2/repeats:7/real_time_stddev                 11190503 ns      7889485 ns            7 items_per_second=2.27239M/s pinned=0
+mutex_queue/payload48/16/iterations:2/repeats:7/real_time_cv                        12.15 %         10.29 %             7 items_per_second=10.35% pinned=0.00%
+mutex_queue/payload48/64/iterations:2/repeats:7/real_time_mean                   63631556 ns     43753704 ns            7 items_per_second=31.4474M/s pinned=1
+mutex_queue/payload48/64/iterations:2/repeats:7/real_time_median                 63761549 ns     44382995 ns            7 items_per_second=31.3669M/s pinned=1
+mutex_queue/payload48/64/iterations:2/repeats:7/real_time_stddev                  1563143 ns      1466669 ns            7 items_per_second=781.222k/s pinned=0
+mutex_queue/payload48/64/iterations:2/repeats:7/real_time_cv                         2.46 %          3.35 %             7 items_per_second=2.48% pinned=0.00%
+naive_atomic/payload48/1/iterations:2/repeats:7/real_time_mean                  305505386 ns    303055466 ns            7 items_per_second=6.56786M/s pinned=1
+naive_atomic/payload48/1/iterations:2/repeats:7/real_time_median                301549992 ns    298509778 ns            7 items_per_second=6.6324M/s pinned=1
+naive_atomic/payload48/1/iterations:2/repeats:7/real_time_stddev                 18827159 ns     18257463 ns            7 items_per_second=404.504k/s pinned=0
+naive_atomic/payload48/1/iterations:2/repeats:7/real_time_cv                         6.16 %          6.02 %             7 items_per_second=6.16% pinned=0.00%
+naive_atomic/payload48/16/iterations:2/repeats:7/real_time_mean                 272625202 ns    267828978 ns            7 items_per_second=7.40549M/s pinned=1
+naive_atomic/payload48/16/iterations:2/repeats:7/real_time_median               280379935 ns    274029798 ns            7 items_per_second=7.13318M/s pinned=1
+naive_atomic/payload48/16/iterations:2/repeats:7/real_time_stddev                26510903 ns     26089960 ns            7 items_per_second=835.127k/s pinned=0
+naive_atomic/payload48/16/iterations:2/repeats:7/real_time_cv                        9.72 %          9.74 %             7 items_per_second=11.28% pinned=0.00%
+naive_atomic/payload48/64/iterations:2/repeats:7/real_time_mean                 278482097 ns    275071150 ns            7 items_per_second=7.19948M/s pinned=1
+naive_atomic/payload48/64/iterations:2/repeats:7/real_time_median               277122528 ns    275932682 ns            7 items_per_second=7.21702M/s pinned=1
+naive_atomic/payload48/64/iterations:2/repeats:7/real_time_stddev                15028599 ns     12676049 ns            7 items_per_second=382.702k/s pinned=0
+naive_atomic/payload48/64/iterations:2/repeats:7/real_time_cv                        5.40 %          4.61 %             7 items_per_second=5.32% pinned=0.00%
+ablation/full (pad128 cache acqrel)/1/iterations:2/repeats:7/real_time_mean     177457910 ns    174942071 ns            7 items_per_second=11.8534M/s pinned=1
+ablation/full (pad128 cache acqrel)/1/iterations:2/repeats:7/real_time_median   191127978 ns    183337982 ns            7 items_per_second=10.4642M/s pinned=1
+ablation/full (pad128 cache acqrel)/1/iterations:2/repeats:7/real_time_stddev    35177327 ns     34302437 ns            7 items_per_second=3.465M/s pinned=0
+ablation/full (pad128 cache acqrel)/1/iterations:2/repeats:7/real_time_cv           19.82 %         19.61 %             7 items_per_second=29.23% pinned=0.00%
+ablation/pad64/1/iterations:2/repeats:7/real_time_mean                          211153800 ns    209765107 ns            7 items_per_second=9.68988M/s pinned=1
+ablation/pad64/1/iterations:2/repeats:7/real_time_median                        200269132 ns    199047610 ns            7 items_per_second=9.98656M/s pinned=1
+ablation/pad64/1/iterations:2/repeats:7/real_time_stddev                         34810260 ns     34166856 ns            7 items_per_second=1.56732M/s pinned=0
+ablation/pad64/1/iterations:2/repeats:7/real_time_cv                                16.49 %         16.29 %             7 items_per_second=16.17% pinned=0.00%
+ablation/no padding (pad8)/1/iterations:2/repeats:7/real_time_mean              160921994 ns    159652368 ns            7 items_per_second=12.5441M/s pinned=1
+ablation/no padding (pad8)/1/iterations:2/repeats:7/real_time_median            162006796 ns    161711499 ns            7 items_per_second=12.3452M/s pinned=1
+ablation/no padding (pad8)/1/iterations:2/repeats:7/real_time_stddev             16231406 ns     16580173 ns            7 items_per_second=1.34468M/s pinned=0
+ablation/no padding (pad8)/1/iterations:2/repeats:7/real_time_cv                    10.09 %         10.39 %             7 items_per_second=10.72% pinned=0.00%
+ablation/no cached index/1/iterations:2/repeats:7/real_time_mean                181981426 ns    179729433 ns            7 items_per_second=11.6452M/s pinned=1
+ablation/no cached index/1/iterations:2/repeats:7/real_time_median              204045444 ns    198003327 ns            7 items_per_second=9.80174M/s pinned=1
+ablation/no cached index/1/iterations:2/repeats:7/real_time_stddev               41466936 ns     40087855 ns            7 items_per_second=3.37985M/s pinned=0
+ablation/no cached index/1/iterations:2/repeats:7/real_time_cv                      22.79 %         22.30 %             7 items_per_second=29.02% pinned=0.00%
+ablation/seq_cst everywhere/1/iterations:2/repeats:7/real_time_mean             367885394 ns    364572217 ns            7 items_per_second=5.44047M/s pinned=1
+ablation/seq_cst everywhere/1/iterations:2/repeats:7/real_time_median           370245532 ns    366748933 ns            7 items_per_second=5.40182M/s pinned=1
+ablation/seq_cst everywhere/1/iterations:2/repeats:7/real_time_stddev            10559607 ns      9603581 ns            7 items_per_second=162.459k/s pinned=0
+ablation/seq_cst everywhere/1/iterations:2/repeats:7/real_time_cv                    2.87 %          2.63 %             7 items_per_second=2.99% pinned=0.00%
+ablation/naive (pad8 nocache seqcst)/1/iterations:2/repeats:7/real_time_mean    382439362 ns    379461035 ns            7 items_per_second=5.26132M/s pinned=1
+ablation/naive (pad8 nocache seqcst)/1/iterations:2/repeats:7/real_time_median  385880412 ns    376456563 ns            7 items_per_second=5.18295M/s pinned=1
+ablation/naive (pad8 nocache seqcst)/1/iterations:2/repeats:7/real_time_stddev   32228438 ns     30824139 ns            7 items_per_second=440.248k/s pinned=0
+ablation/naive (pad8 nocache seqcst)/1/iterations:2/repeats:7/real_time_cv           8.43 %          8.12 %             7 items_per_second=8.37% pinned=0.00%
+### done

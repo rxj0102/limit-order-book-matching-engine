@@ -1,0 +1,20 @@
+producer cpu 1, consumer cpu 2 (4 visible), payload 8 bytes, capacity 4096
+
+headline (21 interleaved rounds, 2000000 items per transfer)
+variant                                      median M/s        min        max
+spsc_ring batch 1                                 97.62      48.87     183.96
+mutex_queue batch 1                                4.34       3.60       5.43
+naive_atomic batch 1                               7.16       6.02      30.52
+spsc_ring batch 64                               206.34     147.58     313.56
+mutex_queue batch 64                              40.39      33.97      82.27
+naive_atomic batch 64                              7.84       5.61      28.14
+
+ablation, batch 1 (21 interleaved rounds, 2000000 items per transfer)
+variant                                      median M/s        min        max
+control: production SpscRing                     103.42      71.28     123.79
+pad128, cached index, acquire/release            109.97      48.81     130.95
+pad64,  cached index, acquire/release            102.16      40.82     137.77
+no padding, cached index, acquire/release         15.47      12.07      19.25
+pad128, no cached index, acquire/release          29.71      16.92      58.36
+pad128, cached index, seq_cst                      8.35       6.65      14.56
+no padding, no cache, seq_cst (naive layout)       5.13       4.36       6.14

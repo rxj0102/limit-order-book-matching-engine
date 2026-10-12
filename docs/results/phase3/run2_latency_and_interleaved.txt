@@ -1,0 +1,50 @@
+### latency
+producer cpu 1, consumer cpu 2 (4 visible); tsc 2.1000 GHz
+timer overhead (lfence+rdtsc+lfence back to back): median 26 ns, p99 34 ns
+arrival period 2000 ns, 100000 items per run, first 10% discarded, 5 runs, median across runs
+
+end to end: receive minus creation (includes waiting for a batch to fill)
+queue         batch   p50 ns    p90 ns    p99 ns  p99.9 ns     max ns   worst max   mean ns
+spsc_ring         1      376       402      5127    135717     222078      495991      1023
+mutex_queue       1     1580      1831     45501    336825    1045876     1389607      3155
+naive_atomic      1      473       520     10875    107919     187517      513824       945
+spsc_ring        16    16494     28559     44140    218652     522734     2477674     16653
+mutex_queue      16    18323     31241     51382    119934     614872     3645249     18823
+naive_atomic     16    18384     30527     47840    338226    1562792     2888394     19041
+spsc_ring        64    64993    117733    140196    202350     444004     4651746     65763
+mutex_queue      64    74131    126943    150514    340780     988490     1315192     76233
+naive_atomic     64    73857    125942    165968   1065921    1522186     3995110     76656
+
+hand off: receive minus the moment the batch was pushed (the queue itself)
+queue         batch   p50 ns    p90 ns    p99 ns  p99.9 ns     max ns   worst max   mean ns
+spsc_ring         1      347       372      5028    135679     222043      495961       988  neg=0
+mutex_queue       1     1550      1799     45472    336796     609443     1389570      3124  neg=0
+naive_atomic      1      443       490     10831    107890     187487      513795       914  neg=0
+spsc_ring        16      491       557      4144    206584     365833      466102      1155  neg=0
+mutex_queue      16     1230     12505     26000     56761     237624     2496905      3195  neg=0
+naive_atomic     16     2697      3300     23495    332154     428158     1255620      3659  neg=0
+spsc_ring        64      837      1118      3563    125672     134420     1136504      1156  neg=0
+mutex_queue      64    12800     15109     41336    264796     397653     1132630     11572  neg=0
+naive_atomic     64     8779     10469     32102    273864     400370     2273249      9684  neg=0
+### interleaved
+producer cpu 1, consumer cpu 2 (4 visible), payload 8 bytes, capacity 4096
+
+headline (21 interleaved rounds, 2000000 items per transfer)
+variant                                      median M/s        min        max
+spsc_ring batch 1                                103.19      29.98     124.02
+mutex_queue batch 1                                4.10       3.42       5.13
+naive_atomic batch 1                               5.13       4.49       6.37
+spsc_ring batch 64                               187.59     158.07     234.21
+mutex_queue batch 64                              40.05      32.27      46.44
+naive_atomic batch 64                              8.03       6.15       8.79
+
+ablation, batch 1 (21 interleaved rounds, 2000000 items per transfer)
+variant                                      median M/s        min        max
+control: production SpscRing                     100.46      49.73     133.45
+pad128, cached index, acquire/release            103.92      46.47     176.82
+pad64,  cached index, acquire/release            105.37      48.56     171.08
+no padding, cached index, acquire/release         11.85       8.89      62.11
+pad128, no cached index, acquire/release          36.05      21.07      57.36
+pad128, cached index, seq_cst                      8.86       6.87      52.32
+no padding, no cache, seq_cst (naive layout)       6.14       4.86       6.95
+### done

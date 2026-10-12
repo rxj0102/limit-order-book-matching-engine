@@ -1,0 +1,9 @@
+date: 2026-10-12T01:39Z
+cpu: Intel(R) Xeon(R) Processor @ 2.10GHz
+cpus visible: 4, threads/core: 1, hypervisor: KVM
+L1d/L2/L3: 192 KiB (4 instances) / 8 MiB (4 instances) / 260 MiB (1 instance)
+kernel: Linux 6.18.44-fc-v114
+governor: not exposed (VM)
+tsc flags: constant_tsc nonstop_tsc 
+compiler: c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+load average: 1.00 1.57 0.94
