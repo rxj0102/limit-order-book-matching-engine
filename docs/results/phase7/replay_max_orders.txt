@@ -1,0 +1,47 @@
+date: 2026-10-12T18:02Z
+cpu: Intel(R) Xeon(R) Processor @ 2.10GHz
+cpus visible: 4, threads/core: 1, hypervisor: KVM
+L1d/L2/L3: 192 KiB (4 instances) / 8 MiB (4 instances) / 260 MiB (1 instance)
+kernel: Linux 6.18.44-fc-v114
+governor: not exposed (VM)
+tsc flags: constant_tsc nonstop_tsc 
+compiler: c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+load average: 0.62 1.19 1.19
+
+lobkit_replay --lobster BIG_lobster_message_10.csv (SYNTHETIC, 1,000,000 messages), pinned taskset -c 2, 9 interleaved rounds, --max-orders varied
+round 1 max-orders 1048576: replay 1: 1000000 messages in 0.192 s = 5.20 M msg/s, final status End 
+round 1 max-orders 262144: replay 1: 1000000 messages in 0.194 s = 5.15 M msg/s, final status End 
+round 1 max-orders 65536: reject PoolExhausted      27525 replay 1: 1000000 messages in 0.119 s = 8.44 M msg/s, final status End 
+round 1 max-orders 32768: reject PoolExhausted      134630 replay 1: 1000000 messages in 0.109 s = 9.21 M msg/s, final status End 
+round 2 max-orders 1048576: replay 1: 1000000 messages in 0.202 s = 4.96 M msg/s, final status End 
+round 2 max-orders 262144: replay 1: 1000000 messages in 0.156 s = 6.42 M msg/s, final status End 
+round 2 max-orders 65536: reject PoolExhausted      27525 replay 1: 1000000 messages in 0.113 s = 8.83 M msg/s, final status End 
+round 2 max-orders 32768: reject PoolExhausted      134630 replay 1: 1000000 messages in 0.123 s = 8.15 M msg/s, final status End 
+round 3 max-orders 1048576: replay 1: 1000000 messages in 0.203 s = 4.93 M msg/s, final status End 
+round 3 max-orders 262144: replay 1: 1000000 messages in 0.192 s = 5.22 M msg/s, final status End 
+round 3 max-orders 65536: reject PoolExhausted      27525 replay 1: 1000000 messages in 0.138 s = 7.26 M msg/s, final status End 
+round 3 max-orders 32768: reject PoolExhausted      134630 replay 1: 1000000 messages in 0.111 s = 8.97 M msg/s, final status End 
+round 4 max-orders 1048576: replay 1: 1000000 messages in 0.202 s = 4.95 M msg/s, final status End 
+round 4 max-orders 262144: replay 1: 1000000 messages in 0.168 s = 5.95 M msg/s, final status End 
+round 4 max-orders 65536: reject PoolExhausted      27525 replay 1: 1000000 messages in 0.129 s = 7.76 M msg/s, final status End 
+round 4 max-orders 32768: reject PoolExhausted      134630 replay 1: 1000000 messages in 0.109 s = 9.20 M msg/s, final status End 
+round 5 max-orders 1048576: replay 1: 1000000 messages in 0.193 s = 5.17 M msg/s, final status End 
+round 5 max-orders 262144: replay 1: 1000000 messages in 0.171 s = 5.84 M msg/s, final status End 
+round 5 max-orders 65536: reject PoolExhausted      27525 replay 1: 1000000 messages in 0.126 s = 7.92 M msg/s, final status End 
+round 5 max-orders 32768: reject PoolExhausted      134630 replay 1: 1000000 messages in 0.152 s = 6.57 M msg/s, final status End 
+round 6 max-orders 1048576: replay 1: 1000000 messages in 0.221 s = 4.52 M msg/s, final status End 
+round 6 max-orders 262144: replay 1: 1000000 messages in 0.216 s = 4.63 M msg/s, final status End 
+round 6 max-orders 65536: reject PoolExhausted      27525 replay 1: 1000000 messages in 0.170 s = 5.87 M msg/s, final status End 
+round 6 max-orders 32768: reject PoolExhausted      134630 replay 1: 1000000 messages in 0.117 s = 8.55 M msg/s, final status End 
+round 7 max-orders 1048576: replay 1: 1000000 messages in 0.204 s = 4.90 M msg/s, final status End 
+round 7 max-orders 262144: replay 1: 1000000 messages in 0.190 s = 5.27 M msg/s, final status End 
+round 7 max-orders 65536: reject PoolExhausted      27525 replay 1: 1000000 messages in 0.140 s = 7.14 M msg/s, final status End 
+round 7 max-orders 32768: reject PoolExhausted      134630 replay 1: 1000000 messages in 0.140 s = 7.15 M msg/s, final status End 
+round 8 max-orders 1048576: replay 1: 1000000 messages in 0.223 s = 4.48 M msg/s, final status End 
+round 8 max-orders 262144: replay 1: 1000000 messages in 0.172 s = 5.80 M msg/s, final status End 
+round 8 max-orders 65536: reject PoolExhausted      27525 replay 1: 1000000 messages in 0.132 s = 7.57 M msg/s, final status End 
+round 8 max-orders 32768: reject PoolExhausted      134630 replay 1: 1000000 messages in 0.110 s = 9.05 M msg/s, final status End 
+round 9 max-orders 1048576: replay 1: 1000000 messages in 0.222 s = 4.51 M msg/s, final status End 
+round 9 max-orders 262144: replay 1: 1000000 messages in 0.179 s = 5.59 M msg/s, final status End 
+round 9 max-orders 65536: reject PoolExhausted      27525 replay 1: 1000000 messages in 0.120 s = 8.34 M msg/s, final status End 
+round 9 max-orders 32768: reject PoolExhausted      134630 replay 1: 1000000 messages in 0.124 s = 8.04 M msg/s, final status End 

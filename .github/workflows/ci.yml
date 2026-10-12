@@ -101,6 +101,8 @@ jobs:
       - run: build/bench/bench/bench_queues --benchmark_filter='spsc_ring/payload8/64'
       - run: LOBKIT_LAT_ITEMS=2000 build/bench/bench/bench_queue_latency
       - run: LOBKIT_ROUNDS=1 build/bench/bench/bench_interleaved
+      - name: Book benchmarks (also checks the std::map baseline produces identical events)
+        run: build/bench/bench/bench_book --benchmark_filter='/(add|match_4)/' --benchmark_repetitions=1
 
   python:
     # Builds the pybind11 extension and runs pytest (through ctest, next to the C++ tests).

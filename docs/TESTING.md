@@ -110,7 +110,28 @@ pytest runs through ctest (test python_pytest) when the python preset is used. F
 - test_bindings.py: a synthetic LOBSTER file is simulated through the bindings and through the lobkit_sim_run command line, and the three CSV files are compared byte for byte (both from a file and from an array). The CSV values are also compared with the numpy arrays (timestamps, ids, quantities, inventory, cumulative PnL). Also: dtypes and shapes, read-only zero-copy views that outlive the result name, adopted buffers, input checks, engine and adapter behaviour, and the error paths (missing file, malformed line with line number, bad configuration, unwritable output).
 - test_sweep.py: a tiny sweep produces the report, plots and raw CSV, results do not depend on the thread count, and an artifact rate sits beside every table.
 
-Limits: the CLI comparison uses the default strategy parameters because the committed 1000 message file gives no fills with some other parameter sets, which would make a comparison vacuous (the test asserts that fills exist). pytest has not been run under a sanitizer.
+Limits: the CLI comparison uses the default strategy parameters because the committed 1000 message file gives no fills with some other parameter sets, which would make a comparison vacuous (the test asserts that fills exist).
+
+### Python under ASan and UBSan
+
+The extension is built with `-fsanitize=address,undefined` (Debug, GCC 13.3, `cmake -S . -B build/pysan -DLOBKIT_BUILD_PYTHON=ON -DLOBKIT_BUILD_TESTS=OFF -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all"`) and the pytest suite is run with the runtimes preloaded because the Python interpreter itself is not instrumented:
+
+    ASAN_OPTIONS=detect_leaks=0 LD_PRELOAD="$(g++ -print-file-name=libasan.so) $(g++ -print-file-name=libubsan.so)" PYTHONPATH=build/pysan/python python3 -m pytest python/tests
+
+Result on the Phase 6 code: 32 passed, no sanitizer report. The check that ASan was active: the module imports 26 sanitizer symbols and the runtime printed its init line. This exercises the zero-copy views (they outlive the result name in a test) and the capsule owned buffers. Leak checking is off because CPython does not free everything at exit, so leaks in the bindings are not covered by this run. CI runs the same steps in the python-sanitizers job.
+
+## Pre-release run of the mutation tool and the fuzz targets
+
+Run on the code of commit 25d38f2 (Phase 6 plus the pybind11 pin), before any v0.1.0 tag, on the KVM VM described in docs/PERFORMANCE.md. The fuzz targets and the mutation tool ran at the same time on 4 vCPUs, so the exec/s figures are lower than the earlier ones in this document.
+
+| Check | Result |
+|---|---|
+| tools/mutation/run.py --build-dir build/release | 28 mutants: 26 killed as expected, 2 survived as expected (the two documented equivalent mutants: modify-emits-event-before-removal and next-ask-searched-from-level-plus-one). No mutant behaved differently from the list |
+| fuzz_engine, 301 s, corpus from fuzz/corpus/engine, max_len 4096 | 175,989 executions (about 585 per second), no crash, no sanitizer report |
+| fuzz_lobster, 301 s | 969,403 executions (about 3,200 per second), no crash, no sanitizer report |
+| fuzz_itch, 301 s | 1,903,326 executions (about 6,300 per second), no crash, no sanitizer report |
+
+The working tree was clean after the mutation run (the tool restores the source). As before, these are coverage guided runs of a few minutes: no crash on the explored inputs, not a proof.
 
 ## Which verification has actually been run
 

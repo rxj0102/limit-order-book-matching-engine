@@ -36,7 +36,8 @@
 
 namespace lobkit::bench {
 
-// ---- sink: cheap, but not removable by the optimizer -----------------------------------------------
+// ---- sink: cheap, but not removable by the optimizer
+// -----------------------------------------------
 struct BenchSink {
   std::uint64_t events = 0;
   std::uint64_t qty = 0;
@@ -46,7 +47,8 @@ struct BenchSink {
   }
 };
 
-// ---- timer calibration --------------------------------------------------------------------------------
+// ---- timer calibration
+// --------------------------------------------------------------------------------
 struct TimerInfo {
   double tsc_per_ns = 0;
   double tsc_per_ns_min = 0, tsc_per_ns_max = 0;  // spread over three calibrations
@@ -118,7 +120,8 @@ inline std::uint64_t minor_faults() {
   return static_cast<std::uint64_t>(ru.ru_minflt);
 }
 
-// ---- engines under test ---------------------------------------------------------------------------------------
+// ---- engines under test
+// ---------------------------------------------------------------------------------------
 struct EngineKind {
   static constexpr const char* name = "engine";
   using Book = Engine<BenchSink>;
@@ -186,7 +189,11 @@ struct Percentiles {
 
 inline Percentiles percentiles_ns(std::vector<std::uint64_t>& v, double tsc_per_ns) {
   std::sort(v.begin(), v.end());
-  auto at = [&](double q) { return static_cast<double>(v[std::min(v.size() - 1, static_cast<std::size_t>(q * static_cast<double>(v.size())))]) / tsc_per_ns; };
+  auto at = [&](double q) {
+    return static_cast<double>(v[std::min(
+               v.size() - 1, static_cast<std::size_t>(q * static_cast<double>(v.size())))]) /
+           tsc_per_ns;
+  };
   return {at(0.50), at(0.90), at(0.99), at(0.999), static_cast<double>(v.back()) / tsc_per_ns};
 }
 

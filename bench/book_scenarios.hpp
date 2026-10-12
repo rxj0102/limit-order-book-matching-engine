@@ -36,7 +36,9 @@ inline BookConfig bench_config() {
   return c;
 }
 
-inline Price px(const BookConfig& c, std::int64_t tick) { return c.base_price + c.tick_size * tick; }
+inline Price px(const BookConfig& c, std::int64_t tick) {
+  return c.base_price + c.tick_size * tick;
+}
 
 namespace detail {
 struct Gen {
@@ -67,8 +69,8 @@ struct Gen {
 };
 }  // namespace detail
 
-inline std::vector<Op> resting_orders(const BookConfig& cfg, std::uint64_t seed, std::size_t n, OrderId first_id,
-                                      std::vector<Op>* keep = nullptr) {
+inline std::vector<Op> resting_orders(const BookConfig& cfg, std::uint64_t seed, std::size_t n,
+                                      OrderId first_id, std::vector<Op>* keep = nullptr) {
   detail::Gen g(cfg, seed);
   std::vector<Op> ops;
   ops.reserve(n);
@@ -78,14 +80,19 @@ inline std::vector<Op> resting_orders(const BookConfig& cfg, std::uint64_t seed,
 }
 
 inline Scenario make_add() {
-  Scenario s{"add", "200k non-crossing limit adds into a book already holding 100k orders", bench_config(), {}, {}};
+  Scenario s{"add",
+             "200k non-crossing limit adds into a book already holding 100k orders",
+             bench_config(),
+             {},
+             {}};
   s.setup = resting_orders(s.cfg, 11, 100000, 1);
   s.measured = resting_orders(s.cfg, 12, 200000, 1000001);
   return s;
 }
 
 inline Scenario make_cancel() {
-  Scenario s{"cancel", "200k cancels, random order, from a book of 300k orders", bench_config(), {}, {}};
+  Scenario s{
+      "cancel", "200k cancels, random order, from a book of 300k orders", bench_config(), {}, {}};
   s.setup = resting_orders(s.cfg, 21, 300000, 1);
   std::vector<OrderId> ids(300000);
   for (std::size_t i = 0; i < ids.size(); ++i) ids[i] = i + 1;
@@ -102,10 +109,13 @@ inline Scenario make_cancel() {
 }
 
 inline Scenario make_modify(bool reprice) {
-  Scenario s{reprice ? "modify_reprice" : "modify_reduce",
-             reprice ? "200k price changes (cancel and replace, loses priority) in a book of 300k orders"
-                     : "200k in place quantity reductions in a book of 300k orders",
-             bench_config(), {}, {}};
+  Scenario s{
+      reprice ? "modify_reprice" : "modify_reduce",
+      reprice ? "200k price changes (cancel and replace, loses priority) in a book of 300k orders"
+              : "200k in place quantity reductions in a book of 300k orders",
+      bench_config(),
+      {},
+      {}};
   s.setup = resting_orders(s.cfg, 31, 300000, 1);
   detail::Gen g(s.cfg, 32);
   // 200k distinct orders, visited in random order. Visiting them in id order would let a hash table
@@ -124,10 +134,12 @@ inline Scenario make_modify(bool reprice) {
     if (reprice) {
       op.mod.new_qty = orig.order.qty;
       op.mod.new_price = px(s.cfg, g.tick_for(orig.order.side));
-      if (op.mod.new_price == orig.order.price) op.mod.new_price += orig.order.side == Side::Bid ? -s.cfg.tick_size : s.cfg.tick_size;
+      if (op.mod.new_price == orig.order.price)
+        op.mod.new_price += orig.order.side == Side::Bid ? -s.cfg.tick_size : s.cfg.tick_size;
     } else {
       op.mod.new_price = orig.order.price;
-      op.mod.new_qty = std::max<Qty>(1, orig.order.qty / 2);  // 1 stays 1: a no-change modify, still in place
+      op.mod.new_qty =
+          std::max<Qty>(1, orig.order.qty / 2);  // 1 stays 1: a no-change modify, still in place
     }
     s.measured.push_back(op);
   }
@@ -136,9 +148,12 @@ inline Scenario make_modify(bool reprice) {
 
 // A buy IOC that consumes exactly n_levels levels of 4 orders each (10 shares per order).
 inline Scenario make_match(int n_levels) {
-  Scenario s{"match_" + std::to_string(n_levels), "IOC buy sweeping " + std::to_string(n_levels) +
-                                                     " price levels of 4 orders each, per operation",
-             bench_config(), {}, {}};
+  Scenario s{"match_" + std::to_string(n_levels),
+             "IOC buy sweeping " + std::to_string(n_levels) +
+                 " price levels of 4 orders each, per operation",
+             bench_config(),
+             {},
+             {}};
   const std::int64_t total_levels = 16000;
   const int sweeps = static_cast<int>(std::min<std::int64_t>(4000, total_levels / n_levels));
   const std::int64_t first = 100;
@@ -156,8 +171,13 @@ inline Scenario make_match(int n_levels) {
     Op op{};
     op.kind = Op::Submit;
     op.ts = 1000000 + static_cast<Timestamp>(k);
-    op.order = NewOrder{1000000 + static_cast<OrderId>(k), px(s.cfg, first + static_cast<std::int64_t>(k + 1) * n_levels - 1),
-                        static_cast<Qty>(40 * n_levels), Side::Bid, OrderType::Ioc, 0, op.ts};
+    op.order = NewOrder{1000000 + static_cast<OrderId>(k),
+                        px(s.cfg, first + static_cast<std::int64_t>(k + 1) * n_levels - 1),
+                        static_cast<Qty>(40 * n_levels),
+                        Side::Bid,
+                        OrderType::Ioc,
+                        0,
+                        op.ts};
     s.measured.push_back(op);
   }
   // Enough repetitions for a few thousand latency samples (p99.9 needs at least ~1000).
@@ -169,8 +189,12 @@ inline Scenario make_match(int n_levels) {
 // submits, cancels and modifies, with owner ids 0 to 3. The first 100k operations build the book
 // and are applied untimed (they are the setup); the next 500k are timed.
 inline Scenario make_mixed() {
-  Scenario s{"mixed", "500k mixed messages (limit 45%, market 3%, IOC 5%, FOK 3%, post-only 6%, cancel 18%, modify 20%) after 100k to build the book",
-             bench_config(), {}, {}};
+  Scenario s{"mixed",
+             "500k mixed messages (limit 45%, market 3%, IOC 5%, FOK 3%, post-only 6%, cancel 18%, "
+             "modify 20%) after 100k to build the book",
+             bench_config(),
+             {},
+             {}};
   testing::WorkloadParams wp;
   wp.seed = 41;
   wp.n = 600000;
@@ -188,8 +212,12 @@ inline Scenario make_mixed() {
 // The synthetic feed generator's messages applied through the replay adapter (adds, reductions,
 // deletes, executions). This is the shape of the Phase 4 replay workload. SYNTHETIC.
 inline Scenario make_feed() {
-  Scenario s{"feed_replay", "500k synthetic feed messages (add, reduce, delete, execute) through the replay adapter after 100k to build the book",
-             bench_config(), {}, {}};
+  Scenario s{"feed_replay",
+             "500k synthetic feed messages (add, reduce, delete, execute) through the replay "
+             "adapter after 100k to build the book",
+             bench_config(),
+             {},
+             {}};
   sim::synthetic::SynthParams sp;
   sp.seed = 51;
   sp.messages = 600000;
@@ -212,13 +240,39 @@ inline Scenario make_feed() {
         op.kind = Op::FeedAdd;
         op.order = NewOrder{m.id, m.price, m.qty, m.side, OrderType::Limit, 0, m.ts};
         break;
-      case md::FeedType::Reduce: op.kind = Op::FeedReduce; break;
-      case md::FeedType::Delete: op.kind = Op::FeedDelete; break;
-      case md::FeedType::Execute: op.kind = Op::FeedExecute; break;
-      default: continue;  // the generator emits only the four above
+      case md::FeedType::Reduce:
+        op.kind = Op::FeedReduce;
+        break;
+      case md::FeedType::Delete:
+        op.kind = Op::FeedDelete;
+        break;
+      case md::FeedType::Execute:
+        op.kind = Op::FeedExecute;
+        break;
+      default:
+        continue;  // the generator emits only the four above
     }
     (i < 100000 ? s.setup : s.measured).push_back(op);
   }
+  return s;
+}
+
+// The mixed scenario with every order id multiplied by 1024. Real order ids are not guaranteed to
+// be dense; this checks how sensitive the id hash is to structure in the ids (strided ids are the
+// classic weakness of a hash that keeps nearby ids nearby). SYNTHETIC.
+inline Scenario make_mixed_strided() {
+  Scenario s = make_mixed();
+  s.name = "mixed_strided_ids";
+  s.what = "the mixed scenario with every order id multiplied by 1024";
+  auto remap = [](std::vector<Op>& v) {
+    for (Op& op : v) {
+      op.order.id *= 1024;
+      op.id *= 1024;
+      op.mod.id *= 1024;
+    }
+  };
+  remap(s.setup);
+  remap(s.measured);
   return s;
 }
 

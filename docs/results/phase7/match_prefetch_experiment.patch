@@ -1,0 +1,27 @@
+diff --git a/include/lobkit/book/book.hpp b/include/lobkit/book/book.hpp
+index 63e468f..37c28af 100644
+--- a/include/lobkit/book/book.hpp
++++ b/include/lobkit/book/book.hpp
+@@ -376,6 +376,8 @@ class Book {
+       while (qty > 0 && lvl.head != kNil) {
+         const Index mi = lvl.head;
+         Order& m = pool_[mi];
++        // The next maker's id map slot is erased soon after this one; start fetching it now.
++        if (m.next != kNil) map_.prefetch(pool_[m.next].id);
+         const Qty fill = std::min(qty, m.qty);
+         std::uint8_t flags = 0;
+         if (owner != kFeedOwner && owner == m.owner) flags |= kTradeSelf;
+diff --git a/include/lobkit/book/id_map.hpp b/include/lobkit/book/id_map.hpp
+index 6158f7d..7b2f9d3 100644
+--- a/include/lobkit/book/id_map.hpp
++++ b/include/lobkit/book/id_map.hpp
+@@ -22,6 +22,9 @@ class IdMap {
+     shift_ = 64 - std::countr_zero(cap);
+   }
+ 
++  // Hint that the slot for `key` will be probed soon (erase of a maker about to be matched).
++  void prefetch(OrderId key) const noexcept { __builtin_prefetch(&slots_[home(key)], 1); }
++
+   [[nodiscard]] Index find(OrderId key) const noexcept {
+     for (std::uint32_t i = home(key);; i = (i + 1) & mask_) {
+       const Slot& s = slots_[i];

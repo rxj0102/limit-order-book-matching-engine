@@ -1,0 +1,19 @@
+diff --git a/include/lobkit/book/id_map.hpp b/include/lobkit/book/id_map.hpp
+index 6158f7d..b6955ca 100644
+--- a/include/lobkit/book/id_map.hpp
++++ b/include/lobkit/book/id_map.hpp
+@@ -91,7 +91,14 @@ class IdMap {
+   // Fibonacci hashing: multiply by 2^64 / golden ratio and take the top bits.
+   // Cheap, and it spreads sequential ids, which are the common case.
+   std::uint32_t home(OrderId key) const noexcept {
++#ifdef LOBKIT_IDMAP_GROUP_BITS
++    // EXPERIMENT: 2^B consecutive ids share a randomly placed group of slots.
++    constexpr int B = LOBKIT_IDMAP_GROUP_BITS;
++    const auto h = static_cast<std::uint32_t>(((key >> B) * 0x9E3779B97F4A7C15ull) >> shift_);
++    return (h & ~((1u << B) - 1)) | (static_cast<std::uint32_t>(key) & ((1u << B) - 1));
++#else
+     return static_cast<std::uint32_t>((key * 0x9E3779B97F4A7C15ull) >> shift_);
++#endif
+   }
+ 
+   std::vector<Slot> slots_;

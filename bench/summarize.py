@@ -17,7 +17,7 @@ from collections import defaultdict
 
 METRICS = [("items_per_second", "Mops/s", 1e-6), ("p50_ns", "p50", 1), ("p90_ns", "p90", 1),
            ("p99_ns", "p99", 1), ("p999_ns", "p99.9", 1), ("max_ns", "max", 1)]
-ORDER = ["add", "cancel", "modify_reduce", "modify_reprice", "match_1", "match_4", "match_16", "match_64", "mixed",
+ORDER = ["add", "cancel", "modify_reduce", "modify_reprice", "match_1", "match_4", "match_16", "match_64", "mixed", "mixed_strided_ids",
          "feed_replay"]
 
 
@@ -89,8 +89,25 @@ def compare(a, b):
                 print(f"| {sc} | Mops/s best of N | {bx:.1f} | {by:.1f} | {(by / bx - 1) * 100:+.1f}% |")
 
 
+def compact(a, b):
+    """One row per scenario: median throughput and p50 before and after, with the change."""
+    ra, _ = load(a)
+    rb, _ = load(b)
+    print("| scenario | Mops/s before | Mops/s after | change | p50 ns before | p50 ns after | change |")
+    print("|---|---|---|---|---|---|---|")
+    for sc in ORDER:
+        x, y = ra.get(f"engine/{sc}"), rb.get(f"engine/{sc}")
+        if not (x and y):
+            continue
+        t0, t1 = med(x["items_per_second"], 1e-6), med(y["items_per_second"], 1e-6)
+        l0, l1 = med(x["p50_ns"]), med(y["p50_ns"])
+        print(f"| {sc} | {t0:.1f} | {t1:.1f} | {(t1 / t0 - 1) * 100:+.0f}% | {l0:.0f} | {l1:.0f} | {(l1 / l0 - 1) * 100:+.0f}% |")
+
+
 if __name__ == "__main__":
-    if len(sys.argv) == 2:
+    if len(sys.argv) == 4 and sys.argv[1] == "--compact":
+        compact(*sys.argv[2:])
+    elif len(sys.argv) == 2:
         single(sys.argv[1])
     elif len(sys.argv) == 3:
         compare(*sys.argv[1:])

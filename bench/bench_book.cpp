@@ -1,5 +1,5 @@
-// Book engine benchmarks (Google Benchmark with manual time) and the std::map baseline under the same
-// harness. All workloads are SYNTHETIC. See docs/PERFORMANCE.md for methodology.
+// Book engine benchmarks (Google Benchmark with manual time) and the std::map baseline under the
+// same harness. All workloads are SYNTHETIC. See docs/PERFORMANCE.md for methodology.
 //
 // Each benchmark runs one iteration per repetition. A repetition does a warm-up run (discarded), a
 // throughput run (one timer read around the batch; reported as items_per_second) and a latency run
@@ -32,8 +32,10 @@ std::vector<std::unique_ptr<Scenario>> g_scenarios;
 template <class Book>
 std::pair<std::uint64_t, std::uint64_t> hash_run(const Scenario& sc) {
   Book book = [&] {
-    if constexpr (std::is_same_v<Book, Engine<HashSink>>) return Book(sc.cfg, HashSink{});
-    else return Book(sc.cfg, HashSink{});
+    if constexpr (std::is_same_v<Book, Engine<HashSink>>)
+      return Book(sc.cfg, HashSink{});
+    else
+      return Book(sc.cfg, HashSink{});
   }();
   for (const Op& op : sc.setup) testing::apply(book, op);
   for (const Op& op : sc.measured) testing::apply(book, op);
@@ -44,9 +46,12 @@ bool check_equivalence(const Scenario& sc) {
   const auto a = hash_run<Engine<HashSink>>(sc);
   const auto b = hash_run<StdMapBook<HashSink>>(sc);
   if (a != b) {
-    std::fprintf(stderr, "baseline differs from engine on scenario %s (hash %llx vs %llx, events %llu vs %llu)\n",
-                 sc.name.c_str(), static_cast<unsigned long long>(a.first), static_cast<unsigned long long>(b.first),
-                 static_cast<unsigned long long>(a.second), static_cast<unsigned long long>(b.second));
+    std::fprintf(
+        stderr,
+        "baseline differs from engine on scenario %s (hash %llx vs %llx, events %llu vs %llu)\n",
+        sc.name.c_str(), static_cast<unsigned long long>(a.first),
+        static_cast<unsigned long long>(b.first), static_cast<unsigned long long>(a.second),
+        static_cast<unsigned long long>(b.second));
     return false;
   }
   return true;
@@ -82,17 +87,23 @@ int main(int argc, char** argv) {
   int cpu = 2;
   if (const char* v = std::getenv("LOBKIT_BENCH_CPU")) cpu = std::atoi(v);
   const bool pinned = pin_to_cpu(cpu);
-  g_timer = calibrate_timer();
 
   using Maker = std::pair<std::string, std::function<Scenario()>>;
-  const std::vector<Maker> makers = {
-      {"add", make_add}, {"cancel", make_cancel}, {"modify_reduce", [] { return make_modify(false); }},
-      {"modify_reprice", [] { return make_modify(true); }}, {"match_1", [] { return make_match(1); }},
-      {"match_4", [] { return make_match(4); }}, {"match_16", [] { return make_match(16); }},
-      {"match_64", [] { return make_match(64); }}, {"mixed", make_mixed}, {"feed_replay", make_feed}};
+  const std::vector<Maker> makers = {{"add", make_add},
+                                     {"cancel", make_cancel},
+                                     {"modify_reduce", [] { return make_modify(false); }},
+                                     {"modify_reprice", [] { return make_modify(true); }},
+                                     {"match_1", [] { return make_match(1); }},
+                                     {"match_4", [] { return make_match(4); }},
+                                     {"match_16", [] { return make_match(16); }},
+                                     {"match_64", [] { return make_match(64); }},
+                                     {"mixed", make_mixed},
+                                     {"mixed_strided_ids", make_mixed_strided},
+                                     {"feed_replay", make_feed}};
 
-  // Profiling mode for perf, valgrind and similar tools: LOBKIT_BENCH_PROFILE=engine/mixed:30 builds one
-  // scenario, runs its throughput pass 30 times (setup included) and exits, without Google Benchmark.
+  // Profiling mode for perf, valgrind and similar tools: LOBKIT_BENCH_PROFILE=engine/mixed:30
+  // builds one scenario, runs its throughput pass 30 times (setup included) and exits, without
+  // Google Benchmark.
   if (const char* pv = std::getenv("LOBKIT_BENCH_PROFILE")) {
     const std::string spec(pv);
     const auto colon = spec.rfind(':');
@@ -103,14 +114,17 @@ int main(int argc, char** argv) {
       if (!eng && !base) continue;
       const Scenario sc = make();
       for (int i = 0; i < n; ++i) {
-        if (eng) (void)run_once<EngineKind>(sc, nullptr);
-        else (void)run_once<StdMapKind>(sc, nullptr);
+        if (eng)
+          (void)run_once<EngineKind>(sc, nullptr);
+        else
+          (void)run_once<StdMapKind>(sc, nullptr);
       }
       return 0;
     }
     std::fprintf(stderr, "unknown profile target %s\n", which.c_str());
     return 2;
   }
+  g_timer = calibrate_timer();
   for (const auto& m : makers) g_scenarios.emplace_back(new Scenario(m.second()));
 
   bool skip_check = false;
@@ -119,7 +133,8 @@ int main(int argc, char** argv) {
   if (!skip_check) {
     for (const auto& s : g_scenarios)
       if (!check_equivalence(*s)) return 2;
-    // The test workload with invalid input and all five order types, as a stronger check on the baseline.
+    // The test workload with invalid input and all five order types, as a stronger check on the
+    // baseline.
     testing::WorkloadParams wp;
     wp.seed = 99;
     wp.n = 400000;
@@ -131,19 +146,25 @@ int main(int argc, char** argv) {
     wp.feed_ops = false;
     bad.measured = testing::make_workload(wp);
     if (!check_equivalence(bad)) return 2;
-    std::printf("equivalence: baseline and engine event streams identical on all scenarios and on a 400k op workload with invalid input\n");
+    std::printf(
+        "equivalence: baseline and engine event streams identical on all scenarios and on a 400k "
+        "op workload with invalid input\n");
   }
 
-  benchmark::AddCustomContext("data", "SYNTHETIC (see scenario descriptions in bench/book_scenarios.hpp)");
+  benchmark::AddCustomContext("data",
+                              "SYNTHETIC (see scenario descriptions in bench/book_scenarios.hpp)");
   benchmark::AddCustomContext("pinned_cpu", pinned ? std::to_string(cpu) : "pinning failed");
   benchmark::AddCustomContext("tsc_per_ns", std::to_string(g_timer.tsc_per_ns));
-  benchmark::AddCustomContext("tsc_per_ns_range", std::to_string(g_timer.tsc_per_ns_min) + " to " + std::to_string(g_timer.tsc_per_ns_max));
+  benchmark::AddCustomContext("tsc_per_ns_range", std::to_string(g_timer.tsc_per_ns_min) + " to " +
+                                                      std::to_string(g_timer.tsc_per_ns_max));
   benchmark::AddCustomContext("tsc_invariant_cpuid", g_timer.cpuid_invariant ? "yes" : "no");
   benchmark::AddCustomContext("tsc_constant_nonstop_cpuinfo",
-                              std::string(g_timer.cpuinfo_constant ? "constant " : "") + (g_timer.cpuinfo_nonstop ? "nonstop" : ""));
+                              std::string(g_timer.cpuinfo_constant ? "constant " : "") +
+                                  (g_timer.cpuinfo_nonstop ? "nonstop" : ""));
   benchmark::AddCustomContext("clocksource", g_timer.clocksource);
-  benchmark::AddCustomContext("timer_overhead_ns_min_median",
-                              std::to_string(g_timer.overhead_ns_min) + " " + std::to_string(g_timer.overhead_ns_median));
+  benchmark::AddCustomContext(
+      "timer_overhead_ns_min_median",
+      std::to_string(g_timer.overhead_ns_min) + " " + std::to_string(g_timer.overhead_ns_median));
 #ifdef LOBKIT_BENCH_FLAGS
   benchmark::AddCustomContext("flags", LOBKIT_BENCH_FLAGS);
 #endif

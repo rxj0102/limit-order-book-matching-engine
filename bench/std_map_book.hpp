@@ -257,8 +257,8 @@ class StdMapBook {
   }
 
   template <class Map>
-  Qty match_side(Map& book, Side side, OwnerId owner, OrderId id, bool limited, Price limit, Qty qty,
-                 Timestamp ts) {
+  Qty match_side(Map& book, Side side, OwnerId owner, OrderId id, bool limited, Price limit,
+                 Qty qty, Timestamp ts) {
     const bool buy = side == Side::Bid;
     while (qty > 0 && !book.empty()) {
       auto lvl = book.begin();
@@ -283,7 +283,8 @@ class StdMapBook {
     return qty;
   }
 
-  Qty match(Side side, OwnerId owner, OrderId id, bool limited, Price limit, Qty qty, Timestamp ts) {
+  Qty match(Side side, OwnerId owner, OrderId id, bool limited, Price limit, Qty qty,
+            Timestamp ts) {
     return side == Side::Bid ? match_side(asks_, side, owner, id, limited, limit, qty, ts)
                              : match_side(bids_, side, owner, id, limited, limit, qty, ts);
   }

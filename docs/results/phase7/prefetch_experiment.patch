@@ -1,0 +1,93 @@
+diff --git a/bench/book_harness.hpp b/bench/book_harness.hpp
+index b8ba07c..e1d099e 100644
+--- a/bench/book_harness.hpp
++++ b/bench/book_harness.hpp
+@@ -146,6 +146,26 @@ struct RunStats {
+   std::uint64_t events = 0;
+ };
+ 
++#ifdef LOBKIT_BENCH_PREFETCH
++inline OrderId op_id(const Op& op) {
++  switch (op.kind) {
++    case Op::Submit:
++    case Op::FeedAdd: return op.order.id;
++    case Op::Modify: return op.mod.id;
++    default: return op.id;
++  }
++}
++template <class B>
++inline void lookahead(B& b, const std::vector<Op>& ops, std::size_t i) {
++  if constexpr (requires { b.prefetch_id(OrderId{}); }) {
++    if (i + LOBKIT_BENCH_PREFETCH < ops.size()) b.prefetch_id(op_id(ops[i + LOBKIT_BENCH_PREFETCH]));
++  }
++}
++#else
++template <class B>
++inline void lookahead(B&, const std::vector<Op>&, std::size_t) {}
++#endif
++
+ // per_op != nullptr selects the latency pass and fills it with one tick delta per operation.
+ template <class Kind>
+ RunStats run_once(const Scenario& sc, std::vector<std::uint64_t>* per_op) {
+@@ -159,7 +179,9 @@ RunStats run_once(const Scenario& sc, std::vector<std::uint64_t>* per_op) {
+     for (const Op& op : sc.setup) testing::apply(book, op);
+     const std::uint64_t f0 = minor_faults();
+     if (per_op) {
+-      for (const Op& op : sc.measured) {
++      for (std::size_t i = 0; i < sc.measured.size(); ++i) {
++        const Op& op = sc.measured[i];
++        lookahead(book, sc.measured, i);
+         const std::uint64_t t0 = rdtsc();
+         testing::apply(book, op);
+         const std::uint64_t t1 = rdtsc();
+@@ -168,7 +190,10 @@ RunStats run_once(const Scenario& sc, std::vector<std::uint64_t>* per_op) {
+       }
+     } else {
+       const std::uint64_t t0 = rdtsc();
+-      for (const Op& op : sc.measured) testing::apply(book, op);
++      for (std::size_t i = 0; i < sc.measured.size(); ++i) {
++        lookahead(book, sc.measured, i);
++        testing::apply(book, sc.measured[i]);
++      }
+       const std::uint64_t t1 = rdtsc();
+       rs.ticks += t1 - t0;
+     }
+diff --git a/include/lobkit/book/book.hpp b/include/lobkit/book/book.hpp
+index 63e468f..e77c71e 100644
+--- a/include/lobkit/book/book.hpp
++++ b/include/lobkit/book/book.hpp
+@@ -155,6 +155,8 @@ class Book {
+     if (y.qty == 0) remove_order(yi);
+   }
+ 
++  void prefetch_id(OrderId id) const noexcept { map_.prefetch(id); }
++
+   // ---- Read side ---------------------------------------------------------
+ 
+   const BookConfig& config() const noexcept { return cfg_; }
+diff --git a/include/lobkit/book/engine.hpp b/include/lobkit/book/engine.hpp
+index 22010c3..50960ad 100644
+--- a/include/lobkit/book/engine.hpp
++++ b/include/lobkit/book/engine.hpp
+@@ -19,6 +19,8 @@ class Engine {
+ 
+   ReplayAdapter<Sink> replay_adapter() noexcept { return ReplayAdapter<Sink>(book_); }
+ 
++  void prefetch_id(OrderId id) const noexcept { book_.prefetch_id(id); }
++
+   Book<Sink>& book() noexcept { return book_; }
+   const Book<Sink>& book() const noexcept { return book_; }
+   Sink& sink() noexcept { return book_.sink(); }
+diff --git a/include/lobkit/book/id_map.hpp b/include/lobkit/book/id_map.hpp
+index 6158f7d..9d49eb3 100644
+--- a/include/lobkit/book/id_map.hpp
++++ b/include/lobkit/book/id_map.hpp
+@@ -22,6 +22,8 @@ class IdMap {
+     shift_ = 64 - std::countr_zero(cap);
+   }
+ 
++  void prefetch(OrderId key) const noexcept { __builtin_prefetch(&slots_[home(key)]); }
++
+   [[nodiscard]] Index find(OrderId key) const noexcept {
+     for (std::uint32_t i = home(key);; i = (i + 1) & mask_) {
+       const Slot& s = slots_[i];
