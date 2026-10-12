@@ -37,6 +37,15 @@ target_compile_options(lobkit_book PRIVATE -Wnull-dereference)
 
 find_package(Threads REQUIRED)
 
+# Market data parsers and the replay harness.
+add_library(lobkit_md STATIC src/md/mapped_file.cpp src/md/names.cpp)
+target_include_directories(lobkit_md PUBLIC include)
+target_compile_features(lobkit_md PUBLIC cxx_std_20)
+target_link_libraries(lobkit_md PUBLIC lobkit_book PRIVATE lobkit_warnings)
+
+add_executable(lobkit_replay tools/lobkit_replay.cpp)
+target_link_libraries(lobkit_replay PRIVATE lobkit_md lobkit_warnings)
+
 # Header-only lock-free infrastructure (SPSC ring). No dependencies.
 add_library(lobkit_infra INTERFACE)
 target_include_directories(lobkit_infra INTERFACE include)

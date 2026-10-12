@@ -7,9 +7,14 @@ add_executable(lobkit_tests
   book/test_invariants.cpp
   book/test_determinism.cpp
   book/test_differential.cpp
-  book/test_names.cpp)
+  book/test_names.cpp
+  md/test_lobster.cpp
+  md/test_itch.cpp
+  md/test_replay.cpp
+  md/test_mapped_file.cpp)
 target_include_directories(lobkit_tests PRIVATE support)
-target_link_libraries(lobkit_tests PRIVATE lobkit_book lobkit_warnings GTest::gtest_main)
+target_link_libraries(lobkit_tests PRIVATE lobkit_md lobkit_warnings GTest::gtest_main)
+target_compile_definitions(lobkit_tests PRIVATE LOBKIT_DATA_DIR="${CMAKE_SOURCE_DIR}/data/synthetic")
 
 # Replaces global operator new, so it must not share a binary with other tests.
 # Clang's ThreadSanitizer runtime defines the same operator new and delete
@@ -23,7 +28,8 @@ endif()
 if(LOBKIT_NO_ALLOC_TEST)
   add_executable(lobkit_no_alloc_test book/test_no_alloc.cpp)
   target_include_directories(lobkit_no_alloc_test PRIVATE support)
-  target_link_libraries(lobkit_no_alloc_test PRIVATE lobkit_book lobkit_warnings GTest::gtest_main)
+  target_link_libraries(lobkit_no_alloc_test PRIVATE lobkit_md lobkit_warnings GTest::gtest_main)
+  target_compile_definitions(lobkit_no_alloc_test PRIVATE LOBKIT_DATA_DIR="${CMAKE_SOURCE_DIR}/data/synthetic")
 endif()
 
 include(GoogleTest)
@@ -42,6 +48,15 @@ add_executable(fuzz_engine_regression
   ../fuzz/fuzz_engine.cpp ../fuzz/standalone_driver.cpp)
 target_include_directories(fuzz_engine_regression PRIVATE support ../fuzz)
 target_link_libraries(fuzz_engine_regression PRIVATE lobkit_book lobkit_warnings)
+# Market data parser targets: same entry points as the libFuzzer binaries.
+foreach(f lobster itch)
+  add_executable(fuzz_${f}_regression ../fuzz/fuzz_${f}.cpp ../fuzz/standalone_driver.cpp)
+  target_include_directories(fuzz_${f}_regression PRIVATE support ../fuzz)
+  target_link_libraries(fuzz_${f}_regression PRIVATE lobkit_md lobkit_warnings)
+  add_test(NAME fuzz_${f}_corpus
+    COMMAND fuzz_${f}_regression ${CMAKE_SOURCE_DIR}/fuzz/corpus/${f} ${CMAKE_SOURCE_DIR}/fuzz/regressions/${f})
+endforeach()
+
 add_test(NAME fuzz_engine_corpus
   COMMAND fuzz_engine_regression
           ${CMAKE_SOURCE_DIR}/fuzz/corpus/engine ${CMAKE_SOURCE_DIR}/fuzz/regressions)

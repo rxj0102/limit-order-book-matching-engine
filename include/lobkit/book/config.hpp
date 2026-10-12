@@ -53,6 +53,15 @@ struct BookStats {
     return feed_crossed_fills + feed_crossed_own_fills + feed_exec_overflow + queue_order_anomalies;
   }
 
+  // Everything that means a feed message could not be applied cleanly: any
+  // reject plus every anomaly counter. Snapshot verification stops when this
+  // grows; plain replay reports it.
+  std::uint64_t feed_problems() const noexcept {
+    std::uint64_t n = anomalies();
+    for (std::uint64_t r : rejects) n += r;
+    return n;
+  }
+
   std::uint64_t reject_count(RejectReason r) const noexcept {
     return rejects[static_cast<std::size_t>(r)];
   }
