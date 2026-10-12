@@ -66,10 +66,18 @@ struct BookInspector {
       Index prev = kNil;
       std::uint64_t sum = 0;
       std::uint32_t cnt = 0;
-      // No cycle guard is needed: the head has prev == kNil, so any cycle
-      // revisits a node whose prev link disagrees and trips the prev check.
+      // Pass 1 only follows next links, bounded by the pool capacity, so a
+      // corrupted chain (cycle, wild index) is reported instead of hanging or
+      // reading outside the pool. Pass 2 may then trust the chain.
+      {
+        std::uint32_t steps = 0;
+        for (Index c = lv.head; c != kNil; c = b.pool_[c].next) {
+          if (c >= b.pool_.capacity())
+            return fail("link out of range at level " + std::to_string(l));
+          if (++steps > b.pool_.capacity()) return fail("cycle in level " + std::to_string(l));
+        }
+      }
       for (Index c = lv.head; c != kNil; c = b.pool_[c].next) {
-        if (c >= b.pool_.capacity()) return fail("link out of range at level " + std::to_string(l));
         ++cnt;
         const Order& o = b.pool_[c];
         if (!(o.flags & kOrderLive)) return fail("dead order linked at level " + std::to_string(l));
@@ -77,7 +85,7 @@ struct BookInspector {
         if (o.level != l) return fail("order level mismatch at level " + std::to_string(l));
         if (o.side != side) return fail("order side mismatch at level " + std::to_string(l));
         if (o.qty == 0) return fail("zero quantity order at level " + std::to_string(l));
-        if (b.map_.find(o.id) != c)
+        if (b.map_.find_bounded(o.id) != c)
           return fail("id map does not point at order " + std::to_string(o.id));
         sum += o.qty;
         prev = c;

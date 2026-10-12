@@ -30,6 +30,19 @@ class IdMap {
     }
   }
 
+  // Same result as find() on a healthy map, but gives up after one full lap of
+  // the table. Used by the invariant checker so that a corrupted, completely
+  // full table yields a reported failure instead of an endless probe.
+  [[nodiscard]] Index find_bounded(OrderId key) const noexcept {
+    std::uint32_t i = home(key);
+    for (std::uint32_t n = 0; n <= mask_; ++n, i = (i + 1) & mask_) {
+      const Slot& s = slots_[i];
+      if (s.idx == kNil) return kNil;
+      if (s.key == key) return s.idx;
+    }
+    return kNil;
+  }
+
   // Caller guarantees the key is absent and the live count is within max_live.
   void insert(OrderId key, Index idx) noexcept {
     std::uint32_t i = home(key);

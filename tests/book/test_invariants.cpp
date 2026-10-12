@@ -105,6 +105,26 @@ TEST_F(CorruptionTest, DetectsLinkOutOfRange) {
   pool[BookInspector::levels(mut())[500].head].next = 999999;
   expect_complaint("out of range");
 }
+// Corruption must produce a reported failure, never a hang. These tests would
+// spin forever (and hit the ctest timeout) if a traversal were unbounded.
+TEST_F(CorruptionTest, ReportsAChainCycleInsteadOfHanging) {
+  auto& pool = BookInspector::pool(mut());
+  const Index head = BookInspector::levels(mut())[500].head;
+  pool[pool[head].next].next = head;  // 0 -> 1 -> 0 -> ...
+  expect_complaint("cycle in level");
+}
+TEST_F(CorruptionTest, ReportsASelfLoopInsteadOfHanging) {
+  auto& pool = BookInspector::pool(mut());
+  const Index tail = BookInspector::levels(mut())[500].tail;
+  pool[tail].next = tail;
+  expect_complaint("cycle in level");
+}
+TEST_F(CorruptionTest, ReportsACompletelyFullIdMapInsteadOfHanging) {
+  auto& map = BookInspector::map(mut());
+  map.erase(1);  // the lookup for order 1 now has to run off the end of its cluster
+  for (OrderId k = 5000; map.size() < map.capacity(); ++k) map.insert(k, 0);
+  expect_complaint("does not point");
+}
 TEST_F(CorruptionTest, DetectsDeadOrderLinked) {
   auto& pool = BookInspector::pool(mut());
   pool[BookInspector::levels(mut())[500].head].flags = 0;
