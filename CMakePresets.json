@@ -118,6 +118,10 @@
     {
       "name": "bench",
       "configurePreset": "bench"
+    },
+    {
+      "name": "python",
+      "configurePreset": "python"
     }
   ],
   "testPresets": [
@@ -159,6 +163,13 @@
     {
       "name": "coverage",
       "configurePreset": "coverage",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "python",
+      "configurePreset": "python",
       "output": {
         "outputOnFailure": true
       }

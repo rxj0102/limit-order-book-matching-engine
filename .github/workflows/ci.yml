@@ -102,9 +102,23 @@ jobs:
       - run: LOBKIT_LAT_ITEMS=2000 build/bench/bench/bench_queue_latency
       - run: LOBKIT_ROUNDS=1 build/bench/bench/bench_interleaved
 
+  python:
+    # Builds the pybind11 extension and runs pytest (through ctest, next to the C++ tests).
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m pip install numpy matplotlib pytest pybind11
+      - run: cmake --preset python
+      - run: cmake --build --preset python
+      - run: ctest --preset python --output-on-failure
+      - name: Analysis sweep, tiny grid (synthetic data)
+        run: |
+          PYTHONPATH=build/python/python python3 python/analysis/sweep.py --seeds 3 --messages 5000 \
+            --gammas 0.05 0.5 --latencies-us 0 1000 --out sweep_ci
+
   format:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - run: |
-          find include src tests fuzz bench tools -name '*.hpp' -o -name '*.cpp' | xargs clang-format --dry-run --Werror
+          find include src tests fuzz bench tools python/src -name '*.hpp' -o -name '*.cpp' | xargs clang-format --dry-run --Werror

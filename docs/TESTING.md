@@ -102,6 +102,16 @@ Sanity check that the targets can find a bug: the frame length check in the ITCH
 
 These are coverage guided runs of a few minutes. They show no crash on the explored inputs; they do not prove the parsers are free of defects.
 
+## Python tests
+
+pytest runs through ctest (test python_pytest) when the python preset is used. Files in python/tests:
+
+- test_features.py: each feature against hand computed values on tiny inputs, plus input validation.
+- test_bindings.py: a synthetic LOBSTER file is simulated through the bindings and through the lobkit_sim_run command line, and the three CSV files are compared byte for byte (both from a file and from an array). The CSV values are also compared with the numpy arrays (timestamps, ids, quantities, inventory, cumulative PnL). Also: dtypes and shapes, read-only zero-copy views that outlive the result name, adopted buffers, input checks, engine and adapter behaviour, and the error paths (missing file, malformed line with line number, bad configuration, unwritable output).
+- test_sweep.py: a tiny sweep produces the report, plots and raw CSV, results do not depend on the thread count, and an artifact rate sits beside every table.
+
+Limits: the CLI comparison uses the default strategy parameters because the committed 1000 message file gives no fills with some other parameter sets, which would make a comparison vacuous (the test asserts that fills exist). pytest has not been run under a sanitizer.
+
 ## Which verification has actually been run
 
 | Verification | Run? | What it shows |
