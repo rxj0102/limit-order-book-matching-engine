@@ -10,6 +10,9 @@ def book_config_for(messages, tick=100, num_levels=65536, max_orders=1 << 20):
     chosen by the same rule as the command line tool."""
     rng = _core.price_range(messages)
     base = _core.suggest_base_price(rng[0], rng[1], tick, num_levels) if rng else 0
+    if rng and (rng[1] - rng[0]) // tick >= num_levels:
+        # Too wide for the band, as real feeds are: center on the median price instead.
+        base = _core.base_price_around(_core.price_median(messages), tick, num_levels)
     return _core.BookConfig(tick_size=tick, base_price=base, num_levels=num_levels, max_orders=max_orders)
 
 

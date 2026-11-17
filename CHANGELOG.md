@@ -4,6 +4,12 @@ Format follows Keep a Changelog. Versions follow Semantic Versioning once a rele
 
 ## [Unreleased]
 
+### Real data: one Nasdaq ITCH day
+- Replayed 2019-12-30 from Nasdaq's public server: every frame decodes, and the top of book of AAPL, MSFT, AMZN, TSLA and QQQ matches an independent Python reconstruction at all 2.6 million changes (docs/results/itch_2019-12-30.md).
+- Fixed: the automatic price band was centred on the midpoint of all add prices, which real far away orders (0.0001 dollars to nearly 200,000 dollars) moved to about 99,700 dollars, so every real order was rejected. When the range does not fit, the band is now centred on the median add price (`scan_price_median`, `base_price_around`, also in the Python helper).
+- Added `itch_extract` (keep chosen stocks from a streamed day and cut it into pieces), `lobkit_replay --top-csv`, `scripts/itch_reference_top.py`, `scripts/compare_top.py`, `scripts/itch_queue_front.py` and `scripts/verify_itch_day.sh`.
+- Documented that 1 to 3 percent of real displayed executions are not at the front of their queue, so the queue_order counter measures departures from strict priority on real data rather than divergence of the book.
+
 ### Phase 8: repository polish
 - Added README.md, docs/LIMITATIONS.md, CONTRIBUTING.md, this changelog and the v0.1.0 release notes.
 - Documentation audit: DESIGN.md brought in line with the code (sinks, modify rule, band selection, simulator latencies and output, CI jobs, release plan, benchmark workloads), see DESIGN.md section 17.

@@ -413,3 +413,23 @@ TEST(MdNames, EveryStatusAndDivergenceReasonHasAName) {
   EXPECT_STREQ(to_string(static_cast<ParseStatus>(200)), "?");
   EXPECT_STREQ(to_string(static_cast<DivergenceReason>(200)), "?");
 }
+
+TEST(Grid, CentersOnTheMedianWhenExtremeOrdersStretchTheRange) {
+  // A real Nasdaq day has adds from 0.0001 to 199,999.99 dollars in the same
+  // stock. The midpoint of that range is nowhere near the book; the median is.
+  lobster::MessageReader rd(
+      "1.0,1,1,1,1,1\n2.0,1,2,1,2900000,1\n3.0,1,3,1,2900100,-1\n4.0,1,4,1,2899900,1\n"
+      "5.0,1,5,1,1999990000,-1\n");
+  Price lo = 0, hi = 0, med = 0;
+  ASSERT_TRUE(scan_price_range(rd, lo, hi));
+  ASSERT_TRUE(scan_price_median(rd, med));
+  EXPECT_EQ(med, 2900000);
+  const Price mid_base = suggest_base_price(lo, hi, 100, 65536);
+  EXPECT_GT(mid_base, 2900100);  // the range midpoint leaves every real price out of band
+  const Price base = base_price_around(med, 100, 65536);
+  EXPECT_EQ(base % 100, 0);
+  EXPECT_LE(base, 2899900);
+  EXPECT_GE(base + 65536 * 100, 2900100);
+  lobster::MessageReader empty("");
+  EXPECT_FALSE(scan_price_median(empty, med));
+}

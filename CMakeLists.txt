@@ -51,6 +51,9 @@ target_link_libraries(lobkit_sim PUBLIC lobkit_md PRIVATE lobkit_warnings)
 add_executable(lobkit_replay tools/lobkit_replay.cpp)
 target_link_libraries(lobkit_replay PRIVATE lobkit_md lobkit_warnings)
 
+add_executable(itch_extract tools/itch_extract.cpp)
+target_link_libraries(itch_extract PRIVATE lobkit_warnings)
+
 add_executable(lobkit_sim_run tools/lobkit_sim.cpp)
 target_link_libraries(lobkit_sim_run PRIVATE lobkit_sim lobkit_warnings)
 

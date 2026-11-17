@@ -16,6 +16,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdio>
 #include <filesystem>
@@ -613,6 +614,28 @@ PYBIND11_MODULE(_core, m) {
 
   m.def("suggest_base_price", &md::suggest_base_price, py::arg("lo"), py::arg("hi"),
         py::arg("tick"), py::arg("num_levels"));
+  m.def("base_price_around", &md::base_price_around, py::arg("center"), py::arg("tick"),
+        py::arg("num_levels"));
+
+  m.def(
+      "price_median",
+      [](py::array msgs) -> std::optional<std::int64_t> {
+        auto flat = py::array::ensure(msgs);
+        const auto* p = static_cast<const md::FeedMsg*>(flat.data());
+        std::vector<std::int64_t> v;
+        for (py::ssize_t i = 0; i < flat.size(); ++i) {
+          if ((p[i].type != md::FeedType::Add && p[i].type != md::FeedType::Replace) ||
+              p[i].price <= 0)
+            continue;
+          v.push_back(p[i].price);
+        }
+        if (v.empty()) return std::nullopt;
+        auto mid = v.begin() + static_cast<std::ptrdiff_t>(v.size() / 2);
+        std::nth_element(v.begin(), mid, v.end());
+        return *mid;
+      },
+      py::arg("messages"),
+      "Median displayed order price of adds and replaces in a FEED_DTYPE array, or None.");
 
   // ---- synthetic data
   // -----------------------------------------------------------------------------------------------
