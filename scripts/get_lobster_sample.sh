@@ -3,9 +3,9 @@
 #
 #   scripts/get_lobster_sample.sh [URL]
 #
-# The URL below is the pattern the LOBSTER site used for its sample files when I
-# last knew it, and it has NOT been verified by me: the host is blocked in the
-# environment this script was written in. If the download fails, do it by hand:
+# The URL below is the pattern the LOBSTER site used for its sample files. As of
+# 2026-11-17 the host is reachable but this URL returns the site's web page
+# instead of a zip: samples are now behind a terms page. Do it by hand:
 #
 #   1. Open https://lobsterdata.com/info/DataSamples.php in a browser.
 #   2. Download one sample, for example AAPL 2012-06-21 with 10 levels

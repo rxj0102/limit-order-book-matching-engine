@@ -13,7 +13,7 @@ The coverage badge is a static value (line coverage of include/lobkit/book and s
 | Claim | State |
 |---|---|
 | Engine behavior matches the documented rules | Verified against a reference book written by the same author from the same specification (differential test, millions of random operations per run, byte-for-byte event comparison), with a hand written mutation check (28 mutants, 26 killed, 2 equivalent), libFuzzer targets (minutes per target, no crash found), invariant checks, and ASan, UBSan and TSan runs. This shows consistency with the documented rules. It does not show that the rules match any real venue. |
-| Reconstruction of real market data | NOT VERIFIED. Real-data LOBSTER verification has not been run: the data host is blocked in the environment this was built in. The parsers were written from public documentation, not from observed files. This line will be updated only after a real file has passed snapshot verification (docs/MARKET_DATA.md section 6). |
+| Reconstruction of real market data | ITCH: verified on a full Nasdaq day (2019-12-30). All 268.7 million frames decode without an error, and for AAPL, MSFT, AMZN, TSLA and QQQ the best bid, best ask and their sizes after every change (2.6 million changes in all) are identical to an independent Python reconstruction (docs/results/itch_2019-12-30.md). LOBSTER: NOT VERIFIED; the free samples now sit behind a terms page that a script cannot pass. |
 | Strategy simulator results | Synthetic data only. Nothing is evidence that any strategy is profitable. The fill model is an approximation (docs/SIMULATOR.md). |
 | Performance numbers | VM measurements on synthetic workloads. See the benchmark section and docs/PERFORMANCE.md. |
 
@@ -98,13 +98,13 @@ The reasoning for each is in docs/DESIGN.md. The ones that shape everything else
 
 ## Limitations
 
-The short version: no real data has been used anywhere, the matching semantics are validated only against their own specification, the fill model is an approximation with no market impact, latency is constant, k is uncalibrated, sigma is crude, hidden executions are not applied, and every timing is from a VM. The complete list, with where each is documented, is in docs/LIMITATIONS.md.
+The short version: one real Nasdaq ITCH day has been replayed and checked, no real LOBSTER file has, the matching semantics are validated only against their own specification (and real data shows that about 1 to 3 percent of displayed executions are not at the front of their queue, which the fill model assumes they are), the fill model is an approximation with no market impact, latency is constant, k is uncalibrated, sigma is crude, hidden executions are not applied, and every timing is from a VM. The complete list, with where each is documented, is in docs/LIMITATIONS.md.
 
 ## Roadmap
 
 Nothing below is promised or scheduled.
 
-1. Run snapshot verification on real LOBSTER files, then decide the seeding policy with that evidence, and update the status block above.
+1. Run snapshot verification on real LOBSTER files, then decide the seeding policy for them with that evidence. (Done for ITCH: a daily file starts and ends empty, docs/results/itch_2019-12-30.md.)
 2. Explain the replay gap in docs/PERFORMANCE.md section 8.
 3. Revisit the id hash experiments with real order ids (docs/PERFORMANCE.md section 8).
 4. Rerun the benchmarks on bare metal with isolated cores.

@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstring>
 #include <thread>
+#include <vector>
 
 #include "lobkit/book/engine.hpp"
 #include "lobkit/md/feed.hpp"
@@ -186,12 +187,36 @@ bool scan_price_range(Reader reader, Price& lo, Price& hi) noexcept {
   return any;
 }
 
-// A base price that centers the band on [lo, hi], aligned to the tick.
-inline Price suggest_base_price(Price lo, Price hi, Price tick, std::uint32_t num_levels) noexcept {
-  const Price mid = lo + (hi - lo) / 2;
-  Price base = mid - static_cast<Price>(num_levels / 2) * tick;
+// A base price that puts `center` in the middle of the band, aligned to the tick.
+inline Price base_price_around(Price center, Price tick, std::uint32_t num_levels) noexcept {
+  Price base = center - static_cast<Price>(num_levels / 2) * tick;
   if (base < 0) base = 0;
   return base - base % tick;
+}
+
+// A base price that centers the band on [lo, hi], aligned to the tick.
+inline Price suggest_base_price(Price lo, Price hi, Price tick, std::uint32_t num_levels) noexcept {
+  return base_price_around(lo + (hi - lo) / 2, tick, num_levels);
+}
+
+// Median price of adds and replaces. Real feeds contain a few orders at
+// extreme prices (a Nasdaq ITCH day has adds from 0.0001 to 199,999.99
+// dollars), so when [lo, hi] does not fit in the ladder its midpoint can be
+// far from every price that trades. The median is where the book is.
+// Allocates; meant for setup, not the hot path.
+template <class Reader>
+bool scan_price_median(Reader reader, Price& median) {
+  std::vector<Price> prices;
+  FeedMsg m;
+  while (reader.next(m) == ParseStatus::Ok) {
+    if ((m.type != FeedType::Add && m.type != FeedType::Replace) || m.price <= 0) continue;
+    prices.push_back(m.price);
+  }
+  if (prices.empty()) return false;
+  auto mid = prices.begin() + static_cast<std::ptrdiff_t>(prices.size() / 2);
+  std::nth_element(prices.begin(), mid, prices.end());
+  median = *mid;
+  return true;
 }
 
 // ---- snapshot verification ---------------------------------------------------

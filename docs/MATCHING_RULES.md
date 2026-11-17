@@ -107,7 +107,7 @@ Some situations mean that the book no longer matches the feed exactly. The engin
 
 | Counter | Meaning |
 |---|---|
-| `queue_order_anomalies` | A feed order was still ahead of the executed feed order, so the execute was not at the front of its queue (section 9, rule 3). This is counted whether or not own orders are present, because on a price-time priority venue it means the replica has diverged from the feed. When own orders sit behind that feed order they are not filled. |
+| `queue_order_anomalies` | A feed order was still ahead of the executed feed order, so the execute was not at the front of its queue (section 9, rule 3). This is counted whether or not own orders are present. The rule assumes strict price-time priority, under which it would mean the replica has diverged from the feed; on a real Nasdaq day 1 to 3 percent of displayed executions break that assumption while the book stays exact (docs/results/itch_2019-12-30.md). When own orders sit behind that feed order they are not filled, which makes the fill model conservative for those executions. |
 | `feed_crossed_own_fills` | A feed add crossed a resting own order and traded with it (section 9, rule 6). |
 | `feed_crossed_fills` | A feed add crossed a resting feed order. A faithful feed never does this. |
 | `feed_exec_overflow` | A feed execute named more quantity than the order had left. |

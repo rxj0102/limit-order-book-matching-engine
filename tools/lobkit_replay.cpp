@@ -42,7 +42,53 @@ struct Args {
   bool parse_only = false;
   std::uint64_t limit = 0;
   int repeat = 1;
+  const char* top_csv = nullptr;
 };
+
+// Plain replay that also writes the top of book after every message that
+// changes it: ts, message index (from 1), bid, bid size, ask, ask size, with
+// empty fields for an empty side. Used to compare the engine with an
+// independent reconstruction of the same feed.
+template <class Reader>
+RunResult replay_logging_top(Engine<NullSink>& eng, Reader& reader, ReplayCounters& c,
+                             std::uint64_t limit, const char* path) {
+  std::FILE* f = std::fopen(path, "w");
+  if (!f) {
+    std::perror(path);
+    return {ParseStatus::End, 0};
+  }
+  std::fputs("ts,index,bid,bid_qty,ask,ask_qty\n", f);
+  FeedMsg m;
+  std::uint64_t n = 0;
+  std::int64_t pb = -1, pa = -1, qb = -1, qa = -1;
+  const auto t0 = std::chrono::steady_clock::now();
+  ParseStatus st;
+  while ((limit == 0 || n < limit) && (st = reader.next(m)) == ParseStatus::Ok) {
+    apply_feed(eng, c, m);
+    ++n;
+    const auto& b = eng.book();
+    const std::int64_t bb = b.has_bid() ? static_cast<std::int64_t>(b.best_bid()) : -1;
+    const std::int64_t ba = b.has_ask() ? static_cast<std::int64_t>(b.best_ask()) : -1;
+    const std::int64_t bq = b.has_bid() ? static_cast<std::int64_t>(b.depth_at(b.best_bid())) : -1;
+    const std::int64_t aq = b.has_ask() ? static_cast<std::int64_t>(b.depth_at(b.best_ask())) : -1;
+    if (bb != pb || ba != pa || bq != qb || aq != qa) {
+      std::fprintf(f, "%" PRIu64 ",%" PRIu64 ",", static_cast<std::uint64_t>(m.ts), n);
+      if (bb >= 0)
+        std::fprintf(f, "%" PRId64 ",%" PRId64 ",", bb, bq);
+      else
+        std::fputs(",,", f);
+      if (ba >= 0)
+        std::fprintf(f, "%" PRId64 ",%" PRId64 "\n", ba, aq);
+      else
+        std::fputs(",\n", f);
+      pb = bb, pa = ba, qb = bq, qa = aq;
+    }
+  }
+  if (limit != 0 && n >= limit) st = ParseStatus::End;
+  std::fclose(f);
+  const auto t1 = std::chrono::steady_clock::now();
+  return {st, std::chrono::duration<double>(t1 - t0).count()};
+}
 
 void usage() {
   std::puts(
@@ -59,7 +105,9 @@ void usage() {
       "divergence\n"
       "  --parse-only        time the parser alone\n"
       "  --limit N           stop after N messages\n"
-      "  --repeat K          repeat the replay K times for timing (fresh engine each time)");
+      "  --repeat K          repeat the replay K times for timing (fresh engine each time)\n"
+      "  --top-csv PATH      plain replay: write the best bid and ask (price and size) to PATH\n"
+      "                      after every message that changes them");
 }
 
 bool parse_args(int argc, char** argv, Args& a) {
@@ -117,6 +165,9 @@ bool parse_args(int argc, char** argv, Args& a) {
     } else if (k == "--limit") {
       if (!(v = need("--limit"))) return false;
       a.limit = std::strtoull(v, nullptr, 10);
+    } else if (k == "--top-csv") {
+      if (!(v = need("--top-csv"))) return false;
+      a.top_csv = v;
     } else if (k == "--repeat") {
       if (!(v = need("--repeat"))) return false;
       a.repeat = std::atoi(v);
@@ -268,10 +319,16 @@ int main(int argc, char** argv) {
       std::printf("price range in file: %" PRId64 " .. %" PRId64 " (%" PRId64
                   " ticks); base price %" PRId64 "\n",
                   lo, hi, span, cfg.base_price);
-      if (span >= static_cast<Price>(a.num_levels))
+      if (span >= static_cast<Price>(a.num_levels)) {
+        Price med = 0;
+        const bool have = a.lobster ? scan_price_median(make_reader_lobster(), med)
+                                    : scan_price_median(make_reader_itch(), med);
+        if (have) cfg.base_price = base_price_around(med, a.tick, a.num_levels);
         std::printf(
-            "WARNING: the range does not fit in %u levels; out-of-band messages are expected\n",
-            a.num_levels);
+            "the range does not fit in %u levels: band centered on the median add price %" PRId64
+            " instead, base price %" PRId64 "; orders outside the band are rejected and counted\n",
+            a.num_levels, med, cfg.base_price);
+      }
     }
   }
   try {
@@ -317,14 +374,16 @@ int main(int argc, char** argv) {
     ParseStatus st;
     if (a.lobster) {
       auto rd = make_reader_lobster();
-      rr = replay(eng, rd, c, pp, a.limit);
+      rr = (r == 0 && a.top_csv) ? replay_logging_top(eng, rd, c, a.limit, a.top_csv)
+                                 : replay(eng, rd, c, pp, a.limit);
       st = rr.status;
       if (st != ParseStatus::End)
         std::printf("stopped at line %zu: %.*s\n", rd.line_number(),
                     static_cast<int>(rd.last_line().size()), rd.last_line().data());
     } else {
       auto rd = make_reader_itch();
-      rr = replay(eng, rd, c, pp, a.limit);
+      rr = (r == 0 && a.top_csv) ? replay_logging_top(eng, rd, c, a.limit, a.top_csv)
+                                 : replay(eng, rd, c, pp, a.limit);
       st = rr.status;
       if (st != ParseStatus::End) std::printf("stopped at byte offset %zu\n", rd.frame_offset());
     }

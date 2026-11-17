@@ -76,7 +76,7 @@ A LOBSTER file might refer to order ids that were placed before its first line (
 
 The decision I made, and why:
 
-- The default policy is strict, no seeding. The replay starts from an empty book. A message that names an unknown id is rejected by the engine, counted, and in verification mode stops the run at that message.
+- The default policy is strict, no seeding. The replay starts from an empty book. For ITCH this is now confirmed on a real day: the daily file starts before any order is entered and every order is gone by the end (docs/results/itch_2019-12-30.md). A message that names an unknown id is rejected by the engine, counted, and in verification mode stops the run at that message.
 - I did not implement a seeding mode that fabricates orders from the first book row. Without knowing whether the real sample needs one, it would be guessing at the book state, and a seeded aggregate order cannot be cancelled by the real ids that follow.
 - I could not determine empirically how the real sample behaves, because the data host is blocked in the environment where this was written (section 6). The synthetic data starts from an empty book by construction, so it says nothing about real files.
 
@@ -95,17 +95,17 @@ Open questions for the real files that I could not settle: whether any halt mess
 |---|---|
 | Parsers and replay on synthetic LOBSTER data (SYNTH_lobster_1000), verified against its generated order book rows | Run and passing. SELF-CONSISTENCY ONLY: the generator and the code share an author and an understanding of the format |
 | Decoder on the hand-built ITCH fixture | Run and passing. Same caveat: the fixture builder and the decoder were written from one reading of the specification |
-| Verification against real LOBSTER order book files | NOT RUN. lobsterdata.com is blocked by the egress policy of this environment (HTTP 403 on CONNECT) |
-| Decoding of a real Nasdaq ITCH file | NOT RUN. emi.nasdaq.com is blocked in the same way |
+| Verification against real LOBSTER order book files | NOT RUN. lobsterdata.com was first blocked by the egress policy of this environment; it is now reachable, but the free samples are behind a terms page that a script cannot pass, so a sample has to be downloaded by hand |
+| Decoding of a real Nasdaq ITCH file | Run and passing on 2019-12-30: 268,744,780 frames, no length or parse error. Top of book for five stocks identical to an independent reconstruction at every change (docs/results/itch_2019-12-30.md) |
 | Fuzzing of the parsers | Run, see docs/TESTING.md for the counts |
 
-So the independent check required by the project has not been done. The parsers and the replay semantics are tested for internal consistency and robustness, and the file layouts are implemented from my knowledge of the public documentation, not from observed files. Any claim that lobkit reproduces LOBSTER or ITCH data is unproven until a real file passes verification.
+For ITCH the independent check has now been done on one real day: the decoder read every frame, and the engine's top of book matched a reconstruction written without lobkit code at every one of 2.6 million changes across five stocks. ITCH files have no book snapshots, so the comparison is with a second reconstruction rather than with the exchange's own book; the closing cross prices in the file match the published closes, which ties the input to the real day. For LOBSTER, any claim that lobkit reproduces the data is unproven until a real file passes snapshot verification.
 
 ## 7. Getting real data
 
 LOBSTER (free samples, registration not needed for the sample page): run `scripts/get_lobster_sample.sh`, or download a sample from lobsterdata.com (the Data Samples page) by hand and unzip it into data/lobster/. Both csv files are needed, with the same number of levels.
 
-Nasdaq ITCH 5.0 sample: Nasdaq publishes daily sample files on its public EMI server (emi.nasdaq.com/ITCH/Nasdaq ITCH/), gzip compressed with names like 01302019.NASDAQ_ITCH50.gz and several gigabytes uncompressed. They are not committed to this repository. Decompress one and run `lobkit_replay --itch FILE --symbol AAPL`. The path and file naming are from memory and unchecked.
+Nasdaq ITCH 5.0 sample: Nasdaq publishes full trading days on its public server, https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/ (checked 2026-11-17), gzip compressed with names like 12302019.NASDAQ_ITCH50.gz, 3.5 to 5.6 GB compressed and about 8 GB uncompressed. They are not committed. `scripts/verify_itch_day.sh FILE.gz AAPL,MSFT` streams one through `itch_extract` (which keeps the chosen stocks in a small file and cuts the day into pieces for the decoder) and runs both checks.
 
 ## 8. Throughput
 
@@ -136,4 +136,4 @@ Fix: the walk stops at the first feed order ahead of the target, since nothing b
 
 The before column grew quadratically. The generator was then changed to execute the oldest order at a level (price-time priority), which is the realistic case and is used for the throughput table above; the old behavior is kept as a stress case behind `scripts/make_synthetic_itch.py --random-exec`.
 
-A queue_order anomaly is counted for every execute of a feed order that is not at the front of its queue, even with no own orders present, because on a price-time priority venue that means the replica no longer matches the feed. The stress stream therefore reports hundreds of thousands of anomalies, and the realistic one reports none.
+A queue_order anomaly is counted for every execute of a feed order that is not at the front of its queue, even with no own orders present. The stress stream therefore reports hundreds of thousands of anomalies, and the realistic synthetic one reports none. On the real ITCH day 1 to 3 percent of displayed executions in continuous trading were not at the front while the book still matched an independent reconstruction exactly, so on real data the counter measures departures from strict price-time priority in the feed, not divergence of the replica (docs/results/itch_2019-12-30.md section 3).

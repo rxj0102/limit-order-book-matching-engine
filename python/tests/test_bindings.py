@@ -273,3 +273,14 @@ def test_unwritable_csv_prefix_is_oserror(tmp_path):
     r = core.run_simulation(book, core.SimConfig(), lobkit.strategy_params(book), msgs)
     with pytest.raises(OSError):
         r.write_csv(str(tmp_path / "missing_dir" / "x"))
+
+
+def test_book_config_centers_on_the_median_when_extreme_prices_stretch_the_range():
+    msgs = core.synthetic_feed(seed=3, messages=2000).copy()
+    add = msgs["type"] == msgs["type"][0]  # the first synthetic message is an add
+    i = np.flatnonzero(add)[:2]
+    msgs["price"][i[0]] = 1                      # 0.0001 dollars
+    msgs["price"][i[1]] = 1_999_990_000          # 199,999.99 dollars, as on a real Nasdaq day
+    book = lobkit.book_config_for(msgs)
+    med = core.price_median(msgs)
+    assert book.base_price <= med < book.base_price + book.num_levels * book.tick_size
