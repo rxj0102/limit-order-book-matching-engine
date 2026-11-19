@@ -43,8 +43,12 @@ double env_seconds(const char* name, double fallback) {
   if (const char* v = std::getenv(name)) return std::atof(v);
   return fallback;
 }
-double stress_seconds() { return env_seconds("LOBKIT_STRESS_SECONDS", 0.4); }
-double max_stress_seconds() { return env_seconds("LOBKIT_STRESS_MAX_SECONDS", 60.0); }
+double stress_seconds() {
+  return env_seconds("LOBKIT_STRESS_SECONDS", 0.4);
+}
+double max_stress_seconds() {
+  return env_seconds("LOBKIT_STRESS_MAX_SECONDS", 60.0);
+}
 
 struct Outcome {
   std::uint64_t pushed = 0, popped = 0;
@@ -145,7 +149,8 @@ void run_matrix() {
       const Outcome o = run(q, batch, 0x1234 + cap);
       EXPECT_TRUE(o.error.empty()) << "cap " << cap << " batch " << batch << ": " << o.error;
       EXPECT_EQ(o.pushed, o.popped) << "loss or duplication, cap " << cap << " batch " << batch;
-      EXPECT_GT(o.pushed, kMinItems) << "stress made no progress within LOBKIT_STRESS_MAX_SECONDS, cap " << cap;
+      EXPECT_GT(o.pushed, kMinItems)
+          << "stress made no progress within LOBKIT_STRESS_MAX_SECONDS, cap " << cap;
     }
   }
 }
