@@ -1,7 +1,10 @@
 // Timed two-thread stress test. A producer emits a strictly increasing sequence
 // and a consumer checks it, so reordering, loss, duplication and torn reads all
 // show up. The capacities are tiny on purpose: full, empty and wraparound happen
-// constantly. Duration per configuration is LOBKIT_STRESS_SECONDS (default 0.4).
+// constantly. Each configuration runs for at least LOBKIT_STRESS_SECONDS (default
+// 0.4) and until kMinItems have been pushed, so a slow or oversubscribed machine
+// gets more wall time instead of a spurious failure. LOBKIT_STRESS_MAX_SECONDS
+// (default 60) is the hard cap; reaching it without kMinItems is a liveness bug.
 // The same test runs the comparison queues, which both validates the benchmark
 // baselines and confirms the harness can see a correct queue as correct.
 #include <gtest/gtest.h>
@@ -34,9 +37,17 @@ inline bool valid(const Item& i) {
   return i.check == ((i.seq * kMix) ^ 0xA5A5A5A5A5A5A5A5ull);
 }
 
+constexpr std::uint64_t kMinItems = 1000;
+
+double env_seconds(const char* name, double fallback) {
+  if (const char* v = std::getenv(name)) return std::atof(v);
+  return fallback;
+}
 double stress_seconds() {
-  if (const char* v = std::getenv("LOBKIT_STRESS_SECONDS")) return std::atof(v);
-  return 0.4;
+  return env_seconds("LOBKIT_STRESS_SECONDS", 0.4);
+}
+double max_stress_seconds() {
+  return env_seconds("LOBKIT_STRESS_MAX_SECONDS", 60.0);
 }
 
 struct Outcome {
@@ -48,6 +59,7 @@ template <class Q>
 Outcome run(Q& q, bool batch, std::uint64_t seed) {
   std::atomic<bool> stop{false}, producer_done{false};
   std::atomic<std::uint64_t> pushed{0};
+  std::atomic<std::uint64_t> progress{0};  // items pushed so far, read by the timer
   Outcome out;
 
   std::thread producer([&] {
@@ -57,7 +69,7 @@ Outcome run(Q& q, bool batch, std::uint64_t seed) {
     while (!stop.load(std::memory_order_relaxed)) {
       if (!batch) {
         if (q.try_push(make(next)))
-          ++next;
+          progress.store(++next, std::memory_order_relaxed);
         else
           std::this_thread::yield();
       } else {
@@ -65,7 +77,10 @@ Outcome run(Q& q, bool batch, std::uint64_t seed) {
         for (std::size_t i = 0; i < want; ++i) buf[i] = make(next + i);
         const std::size_t got = q.try_push_n(buf, want);
         next += got;  // a partial push keeps its prefix; the rest is regenerated
-        if (got == 0) std::this_thread::yield();
+        if (got == 0)
+          std::this_thread::yield();
+        else
+          progress.store(next, std::memory_order_relaxed);
       }
     }
     pushed.store(next, std::memory_order_relaxed);
@@ -110,7 +125,15 @@ Outcome run(Q& q, bool batch, std::uint64_t seed) {
     out.popped = expect;
   });
 
-  std::this_thread::sleep_for(std::chrono::duration<double>(stress_seconds()));
+  using clock = std::chrono::steady_clock;
+  const auto start = clock::now();
+  const auto min_end = start + std::chrono::duration_cast<clock::duration>(
+                                   std::chrono::duration<double>(stress_seconds()));
+  const auto max_end = start + std::chrono::duration_cast<clock::duration>(
+                                   std::chrono::duration<double>(max_stress_seconds()));
+  std::this_thread::sleep_until(min_end);
+  while (progress.load(std::memory_order_relaxed) <= kMinItems && clock::now() < max_end)
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   stop.store(true, std::memory_order_relaxed);
   producer.join();
   consumer.join();
@@ -126,7 +149,8 @@ void run_matrix() {
       const Outcome o = run(q, batch, 0x1234 + cap);
       EXPECT_TRUE(o.error.empty()) << "cap " << cap << " batch " << batch << ": " << o.error;
       EXPECT_EQ(o.pushed, o.popped) << "loss or duplication, cap " << cap << " batch " << batch;
-      EXPECT_GT(o.pushed, 1000u) << "stress made no progress, cap " << cap;
+      EXPECT_GT(o.pushed, kMinItems)
+          << "stress made no progress within LOBKIT_STRESS_MAX_SECONDS, cap " << cap;
     }
   }
 }
